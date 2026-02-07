@@ -1,0 +1,23 @@
+# Binaries
+terraform-provider-shoehorn
+terraform-provider-shoehorn.exe
+*.exe
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Test local overrides
+test-local/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

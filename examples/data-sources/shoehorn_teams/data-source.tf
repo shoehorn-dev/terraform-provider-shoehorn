@@ -1,0 +1,6 @@
+# List all teams
+data "shoehorn_teams" "all" {}
+
+output "team_names" {
+  value = [for t in data.shoehorn_teams.all.teams : t.name]
+}
