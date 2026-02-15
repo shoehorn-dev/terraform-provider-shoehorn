@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-02-15
+
+### Added
+
+- **`shoehorn_tenant_settings`**: Announcement bar configuration support
+  - New nested `announcement` block with fields: `enabled`, `message`, `type`, `pinned`, `link_url`, `link_text`, `updated_at`
+  - Announcement types: `info`, `warning`, `error`, `success`
+  - Optional dismissible or pinned announcements
+- **Validators**: Input validation for tenant settings
+  - Hex color validation for `primary_color`, `secondary_color`, `accent_color` (format: `#RRGGBB`)
+  - Enum validation for `default_theme` (values: `light`, `dark`, `system`)
+  - Enum validation for `announcement.type` (values: `info`, `warning`, `error`, `success`)
+
+### Changed
+
+- **`shoehorn_tenant_settings`**: Enhanced documentation with complete examples
+  - Full configuration example with all appearance and announcement fields
+  - Minimal configuration example
+  - Example without announcement
+- **Tests**: Increased test coverage from 194 to 229 tests
+  - Added 5 announcement-specific tests
+  - Added 8 client tests for new functionality
+  - Added 27 resource tests for validation and announcement handling
+
 ## [0.1.0] - 2026-02-06
 
 ### Added

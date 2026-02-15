@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -124,7 +127,11 @@ func TestMapSettingsToState(t *testing.T) {
 	}
 
 	state := &TenantSettingsResourceModel{}
-	mapSettingsToState(settings, state)
+	var diags diag.Diagnostics
+	mapSettingsToState(context.Background(), settings, state, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
 
 	if state.ID.ValueString() != "settings-1" {
 		t.Errorf("ID = %q, want %q", state.ID.ValueString(), "settings-1")
@@ -167,5 +174,179 @@ func TestBuildAppearanceFromModel(t *testing.T) {
 	}
 	if appearance.DefaultTheme != "dark" {
 		t.Errorf("DefaultTheme = %q, want %q", appearance.DefaultTheme, "dark")
+	}
+}
+
+func TestTenantSettingsResource_Schema_HasAnnouncementAttribute(t *testing.T) {
+	r := NewTenantSettingsResource()
+	resp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
+
+	attrs := resp.Schema.Attributes
+	if _, ok := attrs["announcement"]; !ok {
+		t.Error("schema missing announcement attribute")
+	}
+}
+
+func TestMapSettingsToState_WithAnnouncement(t *testing.T) {
+	settings := &client.TenantSettings{
+		ID:       "settings-1",
+		TenantID: "tenant-123",
+		Appearance: client.AppearanceSettings{
+			PrimaryColor: "#3b82f6",
+		},
+		Announcement: client.AnnouncementSettings{
+			Enabled:   true,
+			Message:   "Maintenance scheduled",
+			Type:      "warning",
+			Pinned:    false,
+			LinkURL:   "https://status.example.com",
+			LinkText:  "View Status",
+			UpdatedAt: "2025-01-15T12:00:00Z",
+		},
+		CreatedAt: "2025-01-15T10:00:00Z",
+		UpdatedAt: "2025-01-15T11:00:00Z",
+	}
+
+	state := &TenantSettingsResourceModel{}
+	var diags diag.Diagnostics
+	mapSettingsToState(context.Background(), settings, state, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	if state.Announcement.IsNull() {
+		t.Fatal("announcement should not be null")
+	}
+
+	var announcement AnnouncementSettingsModel
+	d := state.Announcement.As(context.Background(), &announcement, basetypes.ObjectAsOptions{})
+	if d.HasError() {
+		t.Fatalf("failed to parse announcement: %v", d)
+	}
+
+	if !announcement.Enabled.ValueBool() {
+		t.Error("announcement.Enabled should be true")
+	}
+	if announcement.Message.ValueString() != "Maintenance scheduled" {
+		t.Errorf("announcement.Message = %q, want %q", announcement.Message.ValueString(), "Maintenance scheduled")
+	}
+	if announcement.Type.ValueString() != "warning" {
+		t.Errorf("announcement.Type = %q, want %q", announcement.Type.ValueString(), "warning")
+	}
+	if announcement.LinkURL.ValueString() != "https://status.example.com" {
+		t.Errorf("announcement.LinkURL = %q, want %q", announcement.LinkURL.ValueString(), "https://status.example.com")
+	}
+}
+
+func TestMapSettingsToState_WithoutAnnouncement(t *testing.T) {
+	settings := &client.TenantSettings{
+		ID:       "settings-1",
+		TenantID: "tenant-123",
+		Appearance: client.AppearanceSettings{
+			PrimaryColor: "#3b82f6",
+		},
+		Announcement: client.AnnouncementSettings{
+			Enabled: false,
+			Message: "",
+		},
+		CreatedAt: "2025-01-15T10:00:00Z",
+		UpdatedAt: "2025-01-15T11:00:00Z",
+	}
+
+	state := &TenantSettingsResourceModel{}
+	var diags diag.Diagnostics
+	mapSettingsToState(context.Background(), settings, state, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	// Announcement should be null when disabled and no message
+	if !state.Announcement.IsNull() {
+		t.Error("announcement should be null when disabled with no message")
+	}
+}
+
+func TestBuildAnnouncementFromModel_WithAnnouncement(t *testing.T) {
+	announcementAttrs := map[string]attr.Value{
+		"enabled":    types.BoolValue(true),
+		"message":    types.StringValue("Maintenance window"),
+		"type":       types.StringValue("warning"),
+		"pinned":     types.BoolValue(false),
+		"link_url":   types.StringValue("https://status.example.com"),
+		"link_text":  types.StringValue("View Status"),
+		"updated_at": types.StringValue("2025-01-15T12:00:00Z"),
+	}
+
+	announcementTypes := map[string]attr.Type{
+		"enabled":    types.BoolType,
+		"message":    types.StringType,
+		"type":       types.StringType,
+		"pinned":     types.BoolType,
+		"link_url":   types.StringType,
+		"link_text":  types.StringType,
+		"updated_at": types.StringType,
+	}
+
+	announcementObj, diags := types.ObjectValue(announcementTypes, announcementAttrs)
+	if diags.HasError() {
+		t.Fatalf("failed to create announcement object: %v", diags)
+	}
+
+	model := &TenantSettingsResourceModel{
+		Announcement: announcementObj,
+	}
+
+	var d diag.Diagnostics
+	announcement := buildAnnouncementFromModel(context.Background(), model, &d)
+	if d.HasError() {
+		t.Fatalf("buildAnnouncementFromModel failed: %v", d)
+	}
+
+	if announcement == nil {
+		t.Fatal("announcement should not be nil")
+	}
+
+	if !announcement.Enabled {
+		t.Error("announcement.Enabled should be true")
+	}
+	if announcement.Message != "Maintenance window" {
+		t.Errorf("announcement.Message = %q, want %q", announcement.Message, "Maintenance window")
+	}
+	if announcement.Type != "warning" {
+		t.Errorf("announcement.Type = %q, want %q", announcement.Type, "warning")
+	}
+	if announcement.Pinned {
+		t.Error("announcement.Pinned should be false")
+	}
+	if announcement.LinkURL != "https://status.example.com" {
+		t.Errorf("announcement.LinkURL = %q, want %q", announcement.LinkURL, "https://status.example.com")
+	}
+	if announcement.LinkText != "View Status" {
+		t.Errorf("announcement.LinkText = %q, want %q", announcement.LinkText, "View Status")
+	}
+}
+
+func TestBuildAnnouncementFromModel_NullAnnouncement(t *testing.T) {
+	model := &TenantSettingsResourceModel{
+		Announcement: types.ObjectNull(map[string]attr.Type{
+			"enabled":    types.BoolType,
+			"message":    types.StringType,
+			"type":       types.StringType,
+			"pinned":     types.BoolType,
+			"link_url":   types.StringType,
+			"link_text":  types.StringType,
+			"updated_at": types.StringType,
+		}),
+	}
+
+	var diags diag.Diagnostics
+	announcement := buildAnnouncementFromModel(context.Background(), model, &diags)
+
+	if announcement != nil {
+		t.Error("announcement should be nil for null model")
+	}
+	if diags.HasError() {
+		t.Errorf("unexpected diagnostics: %v", diags)
 	}
 }

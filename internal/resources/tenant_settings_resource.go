@@ -3,13 +3,19 @@ package resources
 import (
 	"context"
 	"fmt"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -35,8 +41,20 @@ type TenantSettingsResourceModel struct {
 	PlatformName        types.String `tfsdk:"platform_name"`
 	PlatformDescription types.String `tfsdk:"platform_description"`
 	CompanyName         types.String `tfsdk:"company_name"`
+	Announcement        types.Object `tfsdk:"announcement"`
 	CreatedAt           types.String `tfsdk:"created_at"`
 	UpdatedAt           types.String `tfsdk:"updated_at"`
+}
+
+// AnnouncementSettingsModel represents announcement configuration.
+type AnnouncementSettingsModel struct {
+	Enabled   types.Bool   `tfsdk:"enabled"`
+	Message   types.String `tfsdk:"message"`
+	Type      types.String `tfsdk:"type"`
+	Pinned    types.Bool   `tfsdk:"pinned"`
+	LinkURL   types.String `tfsdk:"link_url"`
+	LinkText  types.String `tfsdk:"link_text"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
 }
 
 // NewTenantSettingsResource creates a new tenant settings resource.
@@ -60,16 +78,34 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"primary_color": schema.StringAttribute{
-				Description: "Primary brand color (hex, e.g., #3b82f6).",
+				Description: "Primary brand color (hex, e.g., #3b82f6). Used for active states and primary buttons.",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`),
+						"must be a valid hex color code (e.g., #3b82f6)",
+					),
+				},
 			},
 			"secondary_color": schema.StringAttribute{
-				Description: "Secondary brand color (hex, e.g., #64748b).",
+				Description: "Secondary brand color (hex, e.g., #64748b). Used for hover states and secondary UI elements.",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`),
+						"must be a valid hex color code (e.g., #64748b)",
+					),
+				},
 			},
 			"accent_color": schema.StringAttribute{
-				Description: "Accent color (hex, e.g., #8b5cf6).",
+				Description: "Accent color (hex, e.g., #8b5cf6). Used for highlights, badges, and emphasis.",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`),
+						"must be a valid hex color code (e.g., #8b5cf6)",
+					),
+				},
 			},
 			"logo_url": schema.StringAttribute{
 				Description: "URL to the company logo.",
@@ -80,8 +116,11 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:    true,
 			},
 			"default_theme": schema.StringAttribute{
-				Description: "Default theme (light, dark, or system).",
+				Description: "Default theme for users. Valid values: light, dark, system.",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("light", "dark", "system"),
+				},
 			},
 			"platform_name": schema.StringAttribute{
 				Description: "Name of the platform displayed in the UI.",
@@ -94,6 +133,49 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"company_name": schema.StringAttribute{
 				Description: "Company name.",
 				Optional:    true,
+			},
+			"announcement": schema.SingleNestedAttribute{
+				Description: "Announcement bar configuration.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Description: "Whether announcement bar is enabled.",
+						Optional:    true,
+						Computed:    true,
+					},
+					"message": schema.StringAttribute{
+						Description: "Announcement message text.",
+						Optional:    true,
+						Computed:    true,
+					},
+					"type": schema.StringAttribute{
+						Description: "Announcement type. Valid values: info, warning, error, success.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf("info", "warning", "error", "success"),
+						},
+					},
+					"pinned": schema.BoolAttribute{
+						Description: "If true, users cannot dismiss the announcement.",
+						Optional:    true,
+						Computed:    true,
+					},
+					"link_url": schema.StringAttribute{
+						Description: "Optional call-to-action link URL.",
+						Optional:    true,
+						Computed:    true,
+					},
+					"link_text": schema.StringAttribute{
+						Description: "Optional call-to-action link text.",
+						Optional:    true,
+						Computed:    true,
+					},
+					"updated_at": schema.StringAttribute{
+						Description: "Announcement last update timestamp (used for dismiss tracking).",
+						Computed:    true,
+					},
+				},
 			},
 			"created_at": schema.StringAttribute{
 				Description: "The creation timestamp.",
@@ -132,16 +214,24 @@ func (r *TenantSettingsResource) Create(ctx context.Context, req resource.Create
 	}
 
 	appearance := buildAppearanceFromModel(&plan)
+	announcement := buildAnnouncementFromModel(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	settings, err := r.client.UpdateSettings(ctx, client.UpdateSettingsRequest{
-		Appearance: appearance,
+		Appearance:   appearance,
+		Announcement: announcement,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Tenant Settings", fmt.Sprintf("Could not create/update settings: %s", err))
 		return
 	}
 
-	mapSettingsToState(settings, &plan)
+	mapSettingsToState(ctx, settings, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -158,7 +248,10 @@ func (r *TenantSettingsResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	mapSettingsToState(settings, &state)
+	mapSettingsToState(ctx, settings, &state, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -170,16 +263,24 @@ func (r *TenantSettingsResource) Update(ctx context.Context, req resource.Update
 	}
 
 	appearance := buildAppearanceFromModel(&plan)
+	announcement := buildAnnouncementFromModel(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	settings, err := r.client.UpdateSettings(ctx, client.UpdateSettingsRequest{
-		Appearance: appearance,
+		Appearance:   appearance,
+		Announcement: announcement,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Tenant Settings", fmt.Sprintf("Could not update settings: %s", err))
 		return
 	}
 
-	mapSettingsToState(settings, &plan)
+	mapSettingsToState(ctx, settings, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -206,7 +307,29 @@ func buildAppearanceFromModel(model *TenantSettingsResourceModel) client.Appeara
 	}
 }
 
-func mapSettingsToState(settings *client.TenantSettings, state *TenantSettingsResourceModel) {
+func buildAnnouncementFromModel(ctx context.Context, model *TenantSettingsResourceModel, diags *diag.Diagnostics) *client.AnnouncementSettings {
+	if model.Announcement.IsNull() || model.Announcement.IsUnknown() {
+		return nil
+	}
+
+	var announcement AnnouncementSettingsModel
+	d := model.Announcement.As(ctx, &announcement, basetypes.ObjectAsOptions{})
+	diags.Append(d...)
+	if d.HasError() {
+		return nil
+	}
+
+	return &client.AnnouncementSettings{
+		Enabled:  announcement.Enabled.ValueBool(),
+		Message:  announcement.Message.ValueString(),
+		Type:     announcement.Type.ValueString(),
+		Pinned:   announcement.Pinned.ValueBool(),
+		LinkURL:  announcement.LinkURL.ValueString(),
+		LinkText: announcement.LinkText.ValueString(),
+	}
+}
+
+func mapSettingsToState(ctx context.Context, settings *client.TenantSettings, state *TenantSettingsResourceModel, diags *diag.Diagnostics) {
 	state.ID = types.StringValue(settings.ID)
 
 	if settings.Appearance.PrimaryColor != "" {
@@ -235,6 +358,35 @@ func mapSettingsToState(settings *client.TenantSettings, state *TenantSettingsRe
 	}
 	if settings.Appearance.CompanyName != "" {
 		state.CompanyName = types.StringValue(settings.Appearance.CompanyName)
+	}
+
+	// Map announcement if present
+	if settings.Announcement.Enabled || settings.Announcement.Message != "" {
+		announcementAttrs := map[string]attr.Value{
+			"enabled":    types.BoolValue(settings.Announcement.Enabled),
+			"message":    types.StringValue(settings.Announcement.Message),
+			"type":       types.StringValue(settings.Announcement.Type),
+			"pinned":     types.BoolValue(settings.Announcement.Pinned),
+			"link_url":   types.StringValue(settings.Announcement.LinkURL),
+			"link_text":  types.StringValue(settings.Announcement.LinkText),
+			"updated_at": types.StringValue(settings.Announcement.UpdatedAt),
+		}
+
+		announcementTypes := map[string]attr.Type{
+			"enabled":    types.BoolType,
+			"message":    types.StringType,
+			"type":       types.StringType,
+			"pinned":     types.BoolType,
+			"link_url":   types.StringType,
+			"link_text":  types.StringType,
+			"updated_at": types.StringType,
+		}
+
+		announcementObj, d := types.ObjectValue(announcementTypes, announcementAttrs)
+		diags.Append(d...)
+		if !d.HasError() {
+			state.Announcement = announcementObj
+		}
 	}
 
 	if settings.CreatedAt != "" {

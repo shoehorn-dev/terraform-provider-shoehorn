@@ -8,11 +8,12 @@ import (
 
 // TenantSettings represents Shoehorn tenant settings.
 type TenantSettings struct {
-	ID         string             `json:"id,omitempty"`
-	TenantID   string             `json:"tenant_id,omitempty"`
-	Appearance AppearanceSettings `json:"appearance"`
-	CreatedAt  string             `json:"created_at,omitempty"`
-	UpdatedAt  string             `json:"updated_at,omitempty"`
+	ID           string               `json:"id,omitempty"`
+	TenantID     string               `json:"tenant_id,omitempty"`
+	Appearance   AppearanceSettings   `json:"appearance"`
+	Announcement AnnouncementSettings `json:"announcement,omitempty"`
+	CreatedAt    string               `json:"created_at,omitempty"`
+	UpdatedAt    string               `json:"updated_at,omitempty"`
 }
 
 // AppearanceSettings represents the appearance configuration.
@@ -28,9 +29,21 @@ type AppearanceSettings struct {
 	CompanyName         string `json:"company_name,omitempty"`
 }
 
+// AnnouncementSettings represents announcement bar configuration.
+type AnnouncementSettings struct {
+	Enabled   bool   `json:"enabled"`
+	Message   string `json:"message,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Pinned    bool   `json:"pinned,omitempty"`
+	LinkURL   string `json:"link_url,omitempty"`
+	LinkText  string `json:"link_text,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
 // UpdateSettingsRequest is the request body for updating tenant settings.
 type UpdateSettingsRequest struct {
-	Appearance AppearanceSettings `json:"appearance"`
+	Appearance   AppearanceSettings    `json:"appearance"`
+	Announcement *AnnouncementSettings `json:"announcement,omitempty"`
 }
 
 // GetSettings retrieves the tenant settings.
