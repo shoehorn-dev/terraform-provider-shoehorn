@@ -123,6 +123,7 @@ func (p *ShoehornProvider) Resources(_ context.Context) []func() resource.Resour
 		resources.NewIntegrationResource,
 		resources.NewK8sAgentResource,
 		resources.NewPlatformPolicyResource,
+		resources.NewGroupRoleMappingResource,
 	}
 }
 
@@ -135,5 +136,7 @@ func (p *ShoehornProvider) DataSources(_ context.Context) []func() datasource.Da
 		datasources.NewAPIKeysDataSource,
 		datasources.NewK8sAgentsDataSource,
 		datasources.NewPlatformPoliciesDataSource,
+		datasources.NewUsersDataSource,
+		datasources.NewGroupsDataSource,
 	}
 }
