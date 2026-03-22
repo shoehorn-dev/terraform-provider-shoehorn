@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -94,6 +95,8 @@ func (d *FeatureFlagsDataSource) Configure(_ context.Context, req datasource.Con
 }
 
 func (d *FeatureFlagsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "reading feature flags data source")
+
 	flags, err := d.client.ListFeatureFlags(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Feature Flags", fmt.Sprintf("Could not list feature flags: %s", err))

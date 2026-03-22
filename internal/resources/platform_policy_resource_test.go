@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -193,5 +194,34 @@ func TestMapPolicyToState_EmptyOptionalFields(t *testing.T) {
 	}
 	if state.System.ValueBool() {
 		t.Error("System = true, want false")
+	}
+}
+
+func TestMapPolicyToState_ClearsOptionalFields(t *testing.T) {
+	state := &PlatformPolicyResourceModel{
+		Description: types.StringValue("Old description"),
+		Category:    types.StringValue("security"),
+		Enforcement: types.StringValue("block"),
+	}
+
+	policy := &client.PlatformPolicy{
+		ID:      "pol-123",
+		Key:     "test-policy",
+		Name:    "Test Policy",
+		Enabled: true,
+		// Description, Category, Enforcement are empty — cleared
+	}
+
+	mapPolicyToState(policy, state)
+
+	if !state.Description.IsNull() {
+		t.Errorf("Description should be null when API returns empty, got %q", state.Description.ValueString())
+	}
+	if !state.Category.IsNull() {
+		t.Errorf("Category should be null when API returns empty, got %q", state.Category.ValueString())
+	}
+	// Enforcement is Required, so it should always be set (even if empty string)
+	if state.Enforcement.IsNull() {
+		t.Error("Enforcement should not be null (Required field)")
 	}
 }

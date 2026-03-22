@@ -57,7 +57,7 @@ func (c *Client) GetFeatureFlag(ctx context.Context, key string) (*FeatureFlag, 
 		}
 	}
 
-	return nil, fmt.Errorf("feature flag %q not found", key)
+	return nil, fmt.Errorf("feature flag %q: %w", key, ErrNotFound)
 }
 
 // ListFeatureFlags retrieves all feature flags.

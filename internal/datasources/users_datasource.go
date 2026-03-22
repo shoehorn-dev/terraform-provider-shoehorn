@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -137,6 +138,8 @@ func (d *UsersDataSource) Configure(_ context.Context, req datasource.ConfigureR
 }
 
 func (d *UsersDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "reading users data source")
+
 	users, err := d.client.ListDirectoryUsers(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Users", fmt.Sprintf("Could not list users: %s", err))

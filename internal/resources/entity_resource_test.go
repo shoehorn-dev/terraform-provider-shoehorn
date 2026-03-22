@@ -559,8 +559,8 @@ func TestBuildManifestYAML_WithInterfaces(t *testing.T) {
 	if !strings.Contains(yaml, "http:") {
 		t.Error("manifest should contain http interface")
 	}
-	if !strings.Contains(yaml, "openapi: https://petstore3.swagger.io/api/v3/openapi.json") {
-		t.Error("manifest should contain openapi URL")
+	if !strings.Contains(yaml, `openapi: "https://petstore3.swagger.io/api/v3/openapi.json"`) {
+		t.Errorf("manifest should contain quoted openapi URL, got:\n%s", yaml)
 	}
 }
 
@@ -573,8 +573,8 @@ func TestBuildManifestYAML_WithInterfacesFullHTTP(t *testing.T) {
 
 	yaml := buildManifestYAML(model)
 
-	if !strings.Contains(yaml, "baseUrl: https://api.example.com") {
-		t.Error("manifest should contain baseUrl")
+	if !strings.Contains(yaml, `baseUrl: "https://api.example.com"`) {
+		t.Errorf("manifest should contain quoted baseUrl, got:\n%s", yaml)
 	}
 	if !strings.Contains(yaml, "openapi: openapi.yaml") {
 		t.Error("manifest should contain openapi")
@@ -626,6 +626,25 @@ func TestBuildManifestYAML_NoInterfacesWhenNotSet(t *testing.T) {
 
 	if strings.Contains(yaml, "interfaces:") {
 		t.Error("manifest should NOT contain interfaces section when not set")
+	}
+}
+
+func TestBuildManifestYAML_SpecialCharsInValues(t *testing.T) {
+	model := &EntityResourceModel{
+		Name:        types.StringValue("my-service"),
+		Type:        types.StringValue("service"),
+		Description: types.StringValue("Service with: colons and #comments and \"quotes\""),
+	}
+
+	yaml := buildManifestYAML(model)
+
+	// Values with YAML special chars must be quoted to avoid parse errors
+	if !strings.Contains(yaml, "description:") {
+		t.Error("manifest should contain description")
+	}
+	// The description value must be properly quoted/escaped
+	if strings.Contains(yaml, "description: Service with: colons") {
+		t.Error("unquoted description with colons would break YAML parsing — value must be quoted")
 	}
 }
 

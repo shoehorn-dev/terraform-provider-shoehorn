@@ -501,3 +501,28 @@ func TestMapTeamToState_EmptyOptionalFields(t *testing.T) {
 		// Metadata should be empty or null - not crash
 	}
 }
+
+func TestMapTeamToState_ClearsOptionalFields(t *testing.T) {
+	// Pre-populate state with values
+	state := &TeamResourceModel{
+		DisplayName: types.StringValue("Old Display Name"),
+		Description: types.StringValue("Old Description"),
+	}
+
+	// API returns team with empty optional fields (user cleared them)
+	team := &client.Team{
+		ID:   "team-123",
+		Name: "Platform",
+		Slug: "platform",
+	}
+
+	mapTeamToState(team, state)
+
+	// Optional fields should be cleared to null when API returns empty
+	if !state.Description.IsNull() {
+		t.Errorf("Description should be null when API returns empty, got %q", state.Description.ValueString())
+	}
+	if !state.DisplayName.IsNull() {
+		t.Errorf("DisplayName should be null when API returns empty, got %q", state.DisplayName.ValueString())
+	}
+}

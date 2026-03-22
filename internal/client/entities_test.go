@@ -67,6 +67,77 @@ func TestListEntities_Success(t *testing.T) {
 	}
 }
 
+func TestListEntities_Pagination(t *testing.T) {
+	callCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		cursor := r.URL.Query().Get("cursor")
+
+		w.WriteHeader(http.StatusOK)
+
+		if cursor == "" {
+			// First page: return one entity and a nextCursor
+			nextCursor := "page2cursor"
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"entities": []map[string]interface{}{
+					{
+						"service": map[string]interface{}{
+							"id":   "svc-1",
+							"name": "Service One",
+							"type": "service",
+						},
+						"description": "First service",
+					},
+				},
+				"page": map[string]interface{}{
+					"total":      2,
+					"nextCursor": nextCursor,
+				},
+			})
+		} else if cursor == "page2cursor" {
+			// Second page: return one entity and no nextCursor
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"entities": []map[string]interface{}{
+					{
+						"service": map[string]interface{}{
+							"id":   "svc-2",
+							"name": "Service Two",
+							"type": "library",
+						},
+						"description": "Second service",
+					},
+				},
+				"page": map[string]interface{}{
+					"total": 2,
+				},
+			})
+		} else {
+			t.Errorf("unexpected cursor: %s", cursor)
+		}
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "test-key", 30*time.Second)
+	entities, err := c.ListEntities(context.Background())
+	if err != nil {
+		t.Fatalf("ListEntities() error = %v", err)
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected 2 API calls for pagination, got %d", callCount)
+	}
+	if len(entities) != 2 {
+		t.Fatalf("expected 2 entities across pages, got %d", len(entities))
+	}
+	if entities[0].Service.ID != "svc-1" {
+		t.Errorf("entities[0].Service.ID = %q, want %q", entities[0].Service.ID, "svc-1")
+	}
+	if entities[1].Service.ID != "svc-2" {
+		t.Errorf("entities[1].Service.ID = %q, want %q", entities[1].Service.ID, "svc-2")
+	}
+}
+
 func TestGetEntity_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

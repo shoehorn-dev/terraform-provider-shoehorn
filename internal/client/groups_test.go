@@ -131,6 +131,82 @@ func TestRemoveGroupRole_Success(t *testing.T) {
 	}
 }
 
+func TestListGroups_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`Internal Server Error`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.ListGroups(context.Background())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestListGroups_MalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{not valid json`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.ListGroups(context.Background())
+	if err == nil {
+		t.Fatal("expected error for malformed JSON, got nil")
+	}
+}
+
+func TestGetGroupRoles_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"code": "NOT_FOUND", "message": "group not found"})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.GetGroupRoles(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("expected IsNotFound=true, got false; error: %v", err)
+	}
+}
+
+func TestAssignGroupRole_Unauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"code": "UNAUTHORIZED", "message": "Invalid API key"})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "bad-key", 30*time.Second)
+	err := c.AssignGroupRole(context.Background(), "team", GroupRoleRequest{RoleName: "admin"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestRemoveGroupRole_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"code": "NOT_FOUND", "message": "role not found"})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	err := c.RemoveGroupRole(context.Background(), "team", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("expected IsNotFound=true, got false; error: %v", err)
+	}
+}
+
 func TestGroupRoleClient_Lifecycle_Integration(t *testing.T) {
 	roles := make([]map[string]interface{}, 0)
 

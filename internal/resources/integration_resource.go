@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -114,6 +115,8 @@ func (r *IntegrationResource) Configure(_ context.Context, req resource.Configur
 }
 
 func (r *IntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating integration")
+
 	var plan IntegrationResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -146,6 +149,8 @@ func (r *IntegrationResource) Create(ctx context.Context, req resource.CreateReq
 }
 
 func (r *IntegrationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading integration")
+
 	var state IntegrationResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -160,7 +165,12 @@ func (r *IntegrationResource) Read(ctx context.Context, req resource.ReadRequest
 
 	integration, err := r.client.GetIntegration(ctx, id)
 	if err != nil {
-		resp.State.RemoveResource(ctx)
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "integration not found, removing from state", map[string]any{"id": state.ID.ValueString()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Error Reading Integration", fmt.Sprintf("Could not read integration %d: %s", id, err))
 		return
 	}
 
@@ -170,6 +180,8 @@ func (r *IntegrationResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *IntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Debug(ctx, "updating integration")
+
 	var plan IntegrationResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -204,6 +216,8 @@ func (r *IntegrationResource) Update(ctx context.Context, req resource.UpdateReq
 }
 
 func (r *IntegrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting integration")
+
 	var state IntegrationResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -231,17 +245,9 @@ func mapIntegrationToState(integration *client.Integration, state *IntegrationRe
 	state.Name = types.StringValue(integration.Name)
 	state.Type = types.StringValue(integration.Type)
 
-	if integration.Status != "" {
-		state.Status = types.StringValue(integration.Status)
-	}
-	if integration.TeamID != "" {
-		state.TeamID = types.StringValue(integration.TeamID)
-	}
-	if integration.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(integration.CreatedAt)
-	}
-	if integration.UpdatedAt != "" {
-		state.UpdatedAt = types.StringValue(integration.UpdatedAt)
-	}
+	state.Status = stringValueOrNull(integration.Status)
+	state.TeamID = stringValueOrNull(integration.TeamID)
+	state.CreatedAt = stringValueOrNull(integration.CreatedAt)
+	state.UpdatedAt = stringValueOrNull(integration.UpdatedAt)
 	// config_json is preserved from state since API masks sensitive fields
 }

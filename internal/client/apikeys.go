@@ -71,7 +71,7 @@ func (c *Client) GetAPIKey(ctx context.Context, id string) (*APIKey, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("api key %q not found", id)
+	return nil, fmt.Errorf("api key %q: %w", id, ErrNotFound)
 }
 
 // CreateAPIKey generates a new API key.

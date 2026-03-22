@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -166,7 +167,27 @@ func TestMapFeatureFlagToState_EmptyOptionalFields(t *testing.T) {
 	if state.ID.ValueString() != "flag-123" {
 		t.Errorf("ID = %q, want %q", state.ID.ValueString(), "flag-123")
 	}
-	if !state.DefaultEnabled.ValueBool() != true {
-		// DefaultEnabled is false, !false = true
+	if state.DefaultEnabled.ValueBool() {
+		t.Error("DefaultEnabled = true, want false")
+	}
+}
+
+func TestMapFeatureFlagToState_ClearsOptionalFields(t *testing.T) {
+	state := &FeatureFlagResourceModel{
+		Description: types.StringValue("Old description"),
+	}
+
+	flag := &client.FeatureFlag{
+		ID:             "flag-123",
+		Key:            "dark-mode",
+		Name:           "Dark Mode",
+		DefaultEnabled: false,
+		// Description is empty — user cleared it
+	}
+
+	mapFeatureFlagToState(flag, state)
+
+	if !state.Description.IsNull() {
+		t.Errorf("Description should be null when API returns empty, got %q", state.Description.ValueString())
 	}
 }

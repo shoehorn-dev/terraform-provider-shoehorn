@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -109,6 +110,8 @@ func (d *PlatformPoliciesDataSource) Configure(_ context.Context, req datasource
 }
 
 func (d *PlatformPoliciesDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "reading platform policies data source")
+
 	policies, err := d.client.ListPolicies(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Platform Policies", fmt.Sprintf("Could not list platform policies: %s", err))

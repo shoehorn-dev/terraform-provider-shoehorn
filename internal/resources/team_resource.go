@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -125,6 +126,8 @@ func (r *TeamResource) Configure(_ context.Context, req resource.ConfigureReques
 }
 
 func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating team")
+
 	var plan TeamResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -153,11 +156,18 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	// Save partial state immediately so the team is tracked even if member addition fails
+	mapTeamToState(team, &plan)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Add members if specified
 	if !plan.Members.IsNull() && !plan.Members.IsUnknown() {
 		var members []client.AddMemberRequest
 		if err := json.Unmarshal([]byte(plan.Members.ValueString()), &members); err != nil {
-			resp.Diagnostics.AddError("Invalid Members", fmt.Sprintf("Failed to parse members JSON: %s", err))
+			resp.Diagnostics.AddError("Invalid Members JSON", fmt.Sprintf("Team was created but members could not be parsed: %s. Fix the members JSON configuration and run terraform apply again.", err))
 			return
 		}
 		if len(members) > 0 {
@@ -167,17 +177,19 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 			}
 			team, err = r.client.UpdateTeam(ctx, team.ID, updateReq)
 			if err != nil {
-				resp.Diagnostics.AddError("Error Adding Members", fmt.Sprintf("Could not add members to team: %s", err))
+				resp.Diagnostics.AddError("Error Adding Members", fmt.Sprintf("Team was created but members could not be added: %s. Run terraform apply again to retry.", err))
 				return
 			}
+			// Update state with members
+			mapTeamToState(team, &plan)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		}
 	}
-
-	mapTeamToState(team, &plan)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading team")
+
 	var state TeamResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -188,6 +200,11 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	team, err := r.client.GetTeam(ctx, state.ID.ValueString())
 	if err != nil {
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "team not found, removing from state", map[string]any{"id": state.ID.ValueString()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Error Reading Team", fmt.Sprintf("Could not read team %s: %s", state.ID.ValueString(), err))
 		return
 	}
@@ -205,6 +222,8 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 }
 
 func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Debug(ctx, "updating team")
+
 	var plan TeamResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -248,6 +267,8 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 }
 
 func (r *TeamResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting team")
+
 	var state TeamResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -271,24 +292,18 @@ func mapTeamToState(team *client.Team, state *TeamResourceModel) {
 	state.IsActive = types.BoolValue(team.IsActive)
 	state.MemberCount = types.Int64Value(int64(team.MemberCount))
 
-	if team.DisplayName != "" {
-		state.DisplayName = types.StringValue(team.DisplayName)
-	}
-	if team.Description != "" {
-		state.Description = types.StringValue(team.Description)
-	}
-	if team.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(team.CreatedAt)
-	}
-	if team.UpdatedAt != "" {
-		state.UpdatedAt = types.StringValue(team.UpdatedAt)
-	}
+	state.DisplayName = stringValueOrNull(team.DisplayName)
+	state.Description = stringValueOrNull(team.Description)
+	state.CreatedAt = stringValueOrNull(team.CreatedAt)
+	state.UpdatedAt = stringValueOrNull(team.UpdatedAt)
 
-	if team.Metadata != nil && len(team.Metadata) > 0 {
+	if len(team.Metadata) > 0 {
 		metadataJSON, err := json.Marshal(team.Metadata)
 		if err == nil {
 			state.Metadata = types.StringValue(string(metadataJSON))
 		}
+	} else {
+		state.Metadata = types.StringNull()
 	}
 
 	// Map members from API response to terraform state
@@ -308,6 +323,8 @@ func mapTeamToState(team *client.Team, state *TeamResourceModel) {
 		if err == nil {
 			state.Members = types.StringValue(string(membersJSON))
 		}
+	} else {
+		state.Members = types.StringNull()
 	}
 }
 

@@ -121,9 +121,11 @@ func TestAddUserRole_Success(t *testing.T) {
 }
 
 func TestRemoveUserRole_Success(t *testing.T) {
+	var gotPath string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/roles/users/user-1/roles" {
-			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		gotPath = r.URL.Path
+		if r.Method != http.MethodDelete {
+			t.Errorf("unexpected method: %s", r.Method)
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -133,6 +135,40 @@ func TestRemoveUserRole_Success(t *testing.T) {
 	err := c.RemoveUserRole(context.Background(), "user-1", RoleRequest{Role: "admin"})
 	if err != nil {
 		t.Fatalf("RemoveUserRole() error = %v", err)
+	}
+
+	// The role MUST be included in the DELETE path to avoid removing all roles
+	wantPath := "/api/v1/roles/users/user-1/roles/admin"
+	if gotPath != wantPath {
+		t.Errorf("DELETE path = %q, want %q (role must be in path)", gotPath, wantPath)
+	}
+}
+
+func TestRemoveUserRole_SpecialCharsInRole(t *testing.T) {
+	var gotRawPath, gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRawPath = r.URL.RawPath
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	err := c.RemoveUserRole(context.Background(), "user-1", RoleRequest{Role: "org/admin"})
+	if err != nil {
+		t.Fatalf("RemoveUserRole() error = %v", err)
+	}
+
+	// RawPath preserves the URL encoding; role containing "/" should be encoded as %2F
+	wantRawPath := "/api/v1/roles/users/user-1/roles/org%2Fadmin"
+	if gotRawPath != wantRawPath {
+		t.Errorf("DELETE raw path = %q, want %q (role must be URL-encoded)", gotRawPath, wantRawPath)
+	}
+
+	// Decoded path should show the full role name
+	wantDecodedPath := "/api/v1/roles/users/user-1/roles/org/admin"
+	if gotPath != wantDecodedPath {
+		t.Errorf("DELETE decoded path = %q, want %q", gotPath, wantDecodedPath)
 	}
 }
 
@@ -160,10 +196,15 @@ func TestRoleClient_Lifecycle_Integration(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]interface{}{"roles": roles, "count": len(roles)})
 
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/roles/users/user-1/roles":
-			if len(roles) > 0 {
-				roles = roles[:len(roles)-1]
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/roles/users/user-1/roles/admin":
+			// Remove the specific role
+			newRoles := make([]map[string]interface{}, 0)
+			for _, role := range roles {
+				if role["role"] != "admin" {
+					newRoles = append(newRoles, role)
+				}
 			}
+			roles = newRoles
 			w.WriteHeader(http.StatusOK)
 
 		default:

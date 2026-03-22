@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -68,18 +69,23 @@ func (r *GroupRoleMappingResource) Schema(_ context.Context, _ resource.SchemaRe
 				},
 			},
 			"provider": schema.StringAttribute{
-				Description: "The auth provider identifier. Defaults to 'default'.",
+				Description: "The auth provider identifier. Defaults to 'default'. Changing this forces a new resource.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			// Note: description is write-only. The API does not return it in
+			// the group-roles response, so Terraform cannot detect out-of-band
+			// changes to this field.
 			"description": schema.StringAttribute{
-				Description: "Optional description for the role mapping.",
+				Description: "Optional description for the role mapping. Changing this forces a new resource.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -105,6 +111,8 @@ func (r *GroupRoleMappingResource) Configure(_ context.Context, req resource.Con
 }
 
 func (r *GroupRoleMappingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating group role mapping")
+
 	var plan GroupRoleMappingResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -137,16 +145,14 @@ func (r *GroupRoleMappingResource) Create(ctx context.Context, req resource.Crea
 
 	plan.ID = types.StringValue(groupName + ":" + roleName)
 	plan.Provider = types.StringValue(provider)
-	if description != "" {
-		plan.Description = types.StringValue(description)
-	} else {
-		plan.Description = types.StringValue("")
-	}
+	plan.Description = stringValueOrNull(description)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *GroupRoleMappingResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading group role mapping")
+
 	var state GroupRoleMappingResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -158,6 +164,11 @@ func (r *GroupRoleMappingResource) Read(ctx context.Context, req resource.ReadRe
 
 	roles, err := r.client.GetGroupRoles(ctx, groupName)
 	if err != nil {
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "group not found, removing from state", map[string]any{"group_name": groupName, "role_name": roleName})
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Group Role Mapping",
 			fmt.Sprintf("Could not get roles for group %q: %s", groupName, err),
@@ -178,6 +189,7 @@ func (r *GroupRoleMappingResource) Read(ctx context.Context, req resource.ReadRe
 	}
 
 	if !found {
+		tflog.Warn(ctx, "group role mapping not found, removing from state", map[string]any{"group_name": groupName, "role_name": roleName})
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -192,6 +204,8 @@ func (r *GroupRoleMappingResource) Update(_ context.Context, _ resource.UpdateRe
 }
 
 func (r *GroupRoleMappingResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting group role mapping")
+
 	var state GroupRoleMappingResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -216,7 +230,7 @@ func (r *GroupRoleMappingResource) ImportState(ctx context.Context, req resource
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		resp.Diagnostics.AddError(
 			"Invalid Import ID",
-			fmt.Sprintf("Expected import ID in format 'group_name:role_name', got: %s", req.ID),
+			fmt.Sprintf("Expected import ID in format 'group_name:role_name' (note: group names must not contain colons), got: %s", req.ID),
 		)
 		return
 	}

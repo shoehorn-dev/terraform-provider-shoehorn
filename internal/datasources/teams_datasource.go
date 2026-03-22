@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -99,6 +100,8 @@ func (d *TeamsDataSource) Configure(_ context.Context, req datasource.ConfigureR
 }
 
 func (d *TeamsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "reading teams data source")
+
 	teams, err := d.client.ListTeams(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Teams", fmt.Sprintf("Could not list teams: %s", err))

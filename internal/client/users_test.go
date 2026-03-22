@@ -136,4 +136,49 @@ func TestGetDirectoryUser_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for not found user, got nil")
 	}
+	if !IsNotFound(err) {
+		t.Errorf("expected IsNotFound=true, got false; error: %v", err)
+	}
+}
+
+func TestListDirectoryUsers_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`Internal Server Error`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.ListDirectoryUsers(context.Background())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestListDirectoryUsers_MalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`not json`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.ListDirectoryUsers(context.Background())
+	if err == nil {
+		t.Fatal("expected error for malformed JSON, got nil")
+	}
+}
+
+func TestGetDirectoryUser_MalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{broken`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.GetDirectoryUser(context.Background(), "u-1")
+	if err == nil {
+		t.Fatal("expected error for malformed JSON, got nil")
+	}
 }
