@@ -11,6 +11,7 @@ Terraform provider for managing [Shoehorn](https://shoehorn.dev) Internal Develo
 - **Platform Policies** - Enforce organizational standards and governance
 - **API Keys** - Provision API keys for service-to-service authentication
 - **User Roles** - Assign RBAC roles to users
+- **Group Role Mappings** - Map IdP groups to Cerbos roles so group members inherit permissions
 - **Integrations** - Configure third-party integrations (GitHub, PagerDuty, etc.)
 - **Kubernetes Agents** - Register K8s cluster agents for workload discovery
 
@@ -343,6 +344,27 @@ resource "shoehorn_user_role" "admin" {
 }
 ```
 
+### shoehorn_group_role_mapping
+
+Maps an IdP group to a Cerbos role so all members of the group inherit that role.
+
+```hcl
+resource "shoehorn_group_role_mapping" "platform_editors" {
+  group_name  = "team-developer-platform"
+  role_name   = "entity:editor"
+  description = "Grant entity editor access to the developer platform group"
+}
+```
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `group_name` | String | Yes | The IdP group name. Changing this forces replacement. |
+| `role_name` | String | Yes | The Cerbos role name (e.g., `entity:editor`, `workflow:executor`, `tenant:admin`). Changing this forces replacement. |
+| `auth_provider` | String | No | The auth provider identifier. Defaults to `default`. |
+| `description` | String | No | Optional description for the mapping. |
+
+**Computed**: `id` (format: `group_name:role_name`)
+
 ## Data Sources
 
 All resources have corresponding data sources for reading existing state:
@@ -368,6 +390,12 @@ data "shoehorn_k8s_agents" "all" {}
 
 # List all platform policies
 data "shoehorn_platform_policies" "all" {}
+
+# List all IdP directory users
+data "shoehorn_users" "all" {}
+
+# List all IdP groups with role mappings
+data "shoehorn_groups" "all" {}
 ```
 
 ## Importing Existing Resources
@@ -386,6 +414,9 @@ terraform import shoehorn_tenant_settings.main singleton
 
 # Import a platform policy by key
 terraform import shoehorn_platform_policy.require_docs required-entity-docs
+
+# Import a group role mapping (format: group_name:role_name)
+terraform import shoehorn_group_role_mapping.example "team-developer-platform:entity:editor"
 ```
 
 ## Development
