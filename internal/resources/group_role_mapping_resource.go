@@ -30,7 +30,7 @@ type GroupRoleMappingResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	GroupName   types.String `tfsdk:"group_name"`
 	RoleName    types.String `tfsdk:"role_name"`
-	Provider    types.String `tfsdk:"provider"`
+	AuthProvider types.String `tfsdk:"auth_provider"`
 	Description types.String `tfsdk:"description"`
 }
 
@@ -68,7 +68,7 @@ func (r *GroupRoleMappingResource) Schema(_ context.Context, _ resource.SchemaRe
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"provider": schema.StringAttribute{
+			"auth_provider": schema.StringAttribute{
 				Description: "The auth provider identifier. Defaults to 'default'. Changing this forces a new resource.",
 				Optional:    true,
 				Computed:    true,
@@ -122,8 +122,8 @@ func (r *GroupRoleMappingResource) Create(ctx context.Context, req resource.Crea
 	groupName := plan.GroupName.ValueString()
 	roleName := plan.RoleName.ValueString()
 	provider := "default"
-	if !plan.Provider.IsNull() && !plan.Provider.IsUnknown() && plan.Provider.ValueString() != "" {
-		provider = plan.Provider.ValueString()
+	if !plan.AuthProvider.IsNull() && !plan.AuthProvider.IsUnknown() && plan.AuthProvider.ValueString() != "" {
+		provider = plan.AuthProvider.ValueString()
 	}
 	description := ""
 	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
@@ -144,7 +144,7 @@ func (r *GroupRoleMappingResource) Create(ctx context.Context, req resource.Crea
 	}
 
 	plan.ID = types.StringValue(groupName + ":" + roleName)
-	plan.Provider = types.StringValue(provider)
+	plan.AuthProvider = types.StringValue(provider)
 	plan.Description = stringValueOrNull(description)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -182,7 +182,7 @@ func (r *GroupRoleMappingResource) Read(ctx context.Context, req resource.ReadRe
 		if role.RoleName == roleName {
 			found = true
 			if role.Provider != "" {
-				state.Provider = types.StringValue(role.Provider)
+				state.AuthProvider = types.StringValue(role.Provider)
 			}
 			break
 		}

@@ -180,8 +180,12 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 				resp.Diagnostics.AddError("Error Adding Members", fmt.Sprintf("Team was created but members could not be added: %s. Run terraform apply again to retry.", err))
 				return
 			}
-			// Update state with members
+			// Update state with members; preserve planned members if API omits them
+			plannedMembers := plan.Members
 			mapTeamToState(team, &plan)
+			if plan.Members.IsNull() && !plannedMembers.IsNull() {
+				plan.Members = plannedMembers
+			}
 			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		}
 	}
@@ -262,7 +266,11 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
+	plannedMembers := plan.Members
 	mapTeamToState(team, &plan)
+	if plan.Members.IsNull() && !plannedMembers.IsNull() {
+		plan.Members = plannedMembers
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

@@ -31,7 +31,7 @@ func TestGroupRoleMappingResource_Schema_HasRequiredAttributes(t *testing.T) {
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
 	attrs := resp.Schema.Attributes
-	expectedAttrs := []string{"id", "group_name", "role_name", "provider", "description"}
+	expectedAttrs := []string{"id", "group_name", "role_name", "auth_provider", "description"}
 	for _, name := range expectedAttrs {
 		if _, ok := attrs[name]; !ok {
 			t.Errorf("schema missing attribute %q", name)
@@ -178,7 +178,7 @@ var groupRoleMappingStateType = tftypes.Object{
 		"id":          tftypes.String,
 		"group_name":  tftypes.String,
 		"role_name":   tftypes.String,
-		"provider":    tftypes.String,
+		"auth_provider": tftypes.String,
 		"description": tftypes.String,
 	},
 }
