@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -207,6 +208,8 @@ func (r *TenantSettingsResource) Configure(_ context.Context, req resource.Confi
 }
 
 func (r *TenantSettingsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating tenant settings")
+
 	var plan TenantSettingsResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -236,6 +239,8 @@ func (r *TenantSettingsResource) Create(ctx context.Context, req resource.Create
 }
 
 func (r *TenantSettingsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading tenant settings")
+
 	var state TenantSettingsResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -256,6 +261,8 @@ func (r *TenantSettingsResource) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *TenantSettingsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Debug(ctx, "updating tenant settings")
+
 	var plan TenantSettingsResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -284,7 +291,8 @@ func (r *TenantSettingsResource) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *TenantSettingsResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+func (r *TenantSettingsResource) Delete(ctx context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting tenant settings (state only)")
 	// Tenant settings are a singleton and can't be truly deleted.
 	// Removing from state only - the settings will remain in the API.
 }
@@ -332,33 +340,15 @@ func buildAnnouncementFromModel(ctx context.Context, model *TenantSettingsResour
 func mapSettingsToState(ctx context.Context, settings *client.TenantSettings, state *TenantSettingsResourceModel, diags *diag.Diagnostics) {
 	state.ID = types.StringValue(settings.ID)
 
-	if settings.Appearance.PrimaryColor != "" {
-		state.PrimaryColor = types.StringValue(settings.Appearance.PrimaryColor)
-	}
-	if settings.Appearance.SecondaryColor != "" {
-		state.SecondaryColor = types.StringValue(settings.Appearance.SecondaryColor)
-	}
-	if settings.Appearance.AccentColor != "" {
-		state.AccentColor = types.StringValue(settings.Appearance.AccentColor)
-	}
-	if settings.Appearance.LogoURL != "" {
-		state.LogoURL = types.StringValue(settings.Appearance.LogoURL)
-	}
-	if settings.Appearance.FaviconURL != "" {
-		state.FaviconURL = types.StringValue(settings.Appearance.FaviconURL)
-	}
-	if settings.Appearance.DefaultTheme != "" {
-		state.DefaultTheme = types.StringValue(settings.Appearance.DefaultTheme)
-	}
-	if settings.Appearance.PlatformName != "" {
-		state.PlatformName = types.StringValue(settings.Appearance.PlatformName)
-	}
-	if settings.Appearance.PlatformDescription != "" {
-		state.PlatformDescription = types.StringValue(settings.Appearance.PlatformDescription)
-	}
-	if settings.Appearance.CompanyName != "" {
-		state.CompanyName = types.StringValue(settings.Appearance.CompanyName)
-	}
+	state.PrimaryColor = stringValueOrNull(settings.Appearance.PrimaryColor)
+	state.SecondaryColor = stringValueOrNull(settings.Appearance.SecondaryColor)
+	state.AccentColor = stringValueOrNull(settings.Appearance.AccentColor)
+	state.LogoURL = stringValueOrNull(settings.Appearance.LogoURL)
+	state.FaviconURL = stringValueOrNull(settings.Appearance.FaviconURL)
+	state.DefaultTheme = stringValueOrNull(settings.Appearance.DefaultTheme)
+	state.PlatformName = stringValueOrNull(settings.Appearance.PlatformName)
+	state.PlatformDescription = stringValueOrNull(settings.Appearance.PlatformDescription)
+	state.CompanyName = stringValueOrNull(settings.Appearance.CompanyName)
 
 	// Map announcement if present
 	if settings.Announcement.Enabled || settings.Announcement.Message != "" {

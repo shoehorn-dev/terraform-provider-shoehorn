@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -122,6 +123,8 @@ func (r *APIKeyResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 func (r *APIKeyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating api key")
+
 	var plan APIKeyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -166,6 +169,8 @@ func (r *APIKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 func (r *APIKeyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading api key")
+
 	var state APIKeyResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -174,24 +179,26 @@ func (r *APIKeyResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	apiKey, err := r.client.GetAPIKey(ctx, state.ID.ValueString())
 	if err != nil {
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "api key not found, removing from state", map[string]any{"id": state.ID.ValueString()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Error Reading API Key", fmt.Sprintf("Could not read API key %s: %s", state.ID.ValueString(), err))
 		return
 	}
 
 	// If key is revoked, remove from state
 	if apiKey.RevokedAt != "" {
+		tflog.Warn(ctx, "api key revoked, removing from state", map[string]any{"id": state.ID.ValueString()})
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
 	state.Name = types.StringValue(apiKey.Name)
 	state.KeyPrefix = types.StringValue(apiKey.KeyPrefix)
-	if apiKey.ExpiresAt != "" {
-		state.ExpiresAt = types.StringValue(apiKey.ExpiresAt)
-	}
-	if apiKey.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(apiKey.CreatedAt)
-	}
+	state.ExpiresAt = stringValueOrNull(apiKey.ExpiresAt)
+	state.CreatedAt = stringValueOrNull(apiKey.CreatedAt)
 	// raw_key is preserved from state - not returned by API after creation
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -203,6 +210,8 @@ func (r *APIKeyResource) Update(_ context.Context, _ resource.UpdateRequest, res
 }
 
 func (r *APIKeyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting api key")
+
 	var state APIKeyResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

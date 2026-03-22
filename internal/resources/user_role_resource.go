@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -92,6 +93,8 @@ func (r *UserRoleResource) Configure(_ context.Context, req resource.ConfigureRe
 }
 
 func (r *UserRoleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating user role")
+
 	var plan UserRoleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -119,6 +122,8 @@ func (r *UserRoleResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 func (r *UserRoleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading user role")
+
 	var state UserRoleResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -130,15 +135,17 @@ func (r *UserRoleResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	userRole, err := r.client.GetUserRole(ctx, userID, role)
 	if err != nil {
-		// Role not found - remove from state
-		resp.State.RemoveResource(ctx)
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "user role not found, removing from state", map[string]any{"user_id": userID, "role": role})
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Error Reading User Role", fmt.Sprintf("Could not read role %s for user %s: %s", role, userID, err))
 		return
 	}
 
 	state.ID = types.StringValue(userID + ":" + role)
-	if userRole.Email != "" {
-		state.Email = types.StringValue(userRole.Email)
-	}
+	state.Email = stringValueOrNull(userRole.Email)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -165,6 +172,8 @@ func (r *UserRoleResource) ImportState(ctx context.Context, req resource.ImportS
 }
 
 func (r *UserRoleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting user role")
+
 	var state UserRoleResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -99,6 +100,8 @@ func (d *EntitiesDataSource) Configure(_ context.Context, req datasource.Configu
 }
 
 func (d *EntitiesDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "reading entities data source")
+
 	entities, err := d.client.ListEntities(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Entities", fmt.Sprintf("Could not list entities: %s", err))

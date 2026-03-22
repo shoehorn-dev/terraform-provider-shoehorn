@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -159,6 +160,8 @@ func (r *EntityResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 func (r *EntityResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating entity")
+
 	var plan EntityResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -195,6 +198,8 @@ func (r *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 func (r *EntityResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading entity")
+
 	var state EntityResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -209,6 +214,11 @@ func (r *EntityResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	entity, err := r.client.GetEntity(ctx, state.ID.ValueString())
 	if err != nil {
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "entity not found, removing from state", map[string]any{"id": state.ID.ValueString()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Error Reading Entity", fmt.Sprintf("Could not read entity %s: %s", state.ID.ValueString(), err))
 		return
 	}
@@ -247,6 +257,8 @@ func (r *EntityResource) Read(ctx context.Context, req resource.ReadRequest, res
 }
 
 func (r *EntityResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Debug(ctx, "updating entity")
+
 	var plan EntityResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -287,6 +299,8 @@ func (r *EntityResource) Update(ctx context.Context, req resource.UpdateRequest,
 }
 
 func (r *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting entity")
+
 	var state EntityResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -312,26 +326,26 @@ func buildManifestYAML(model *EntityResourceModel) string {
 
 	// Service block (required: id, name, type)
 	b.WriteString("service:\n")
-	b.WriteString(fmt.Sprintf("  id: %s\n", model.Name.ValueString()))
-	b.WriteString(fmt.Sprintf("  name: %s\n", model.Name.ValueString()))
-	b.WriteString(fmt.Sprintf("  type: %s\n", model.Type.ValueString()))
+	fmt.Fprintf(&b, "  id: %s\n", yamlQuote(model.Name.ValueString()))
+	fmt.Fprintf(&b, "  name: %s\n", yamlQuote(model.Name.ValueString()))
+	fmt.Fprintf(&b, "  type: %s\n", yamlQuote(model.Type.ValueString()))
 
 	if !model.Tier.IsNull() && !model.Tier.IsUnknown() {
-		b.WriteString(fmt.Sprintf("  tier: %s\n", model.Tier.ValueString()))
+		fmt.Fprintf(&b, "  tier: %s\n", yamlQuote(model.Tier.ValueString()))
 	}
 
 	if !model.Description.IsNull() && !model.Description.IsUnknown() {
-		b.WriteString(fmt.Sprintf("\ndescription: %s\n", model.Description.ValueString()))
+		fmt.Fprintf(&b, "\ndescription: %s\n", yamlQuote(model.Description.ValueString()))
 	}
 
 	if !model.Lifecycle.IsNull() && !model.Lifecycle.IsUnknown() {
-		b.WriteString(fmt.Sprintf("\nlifecycle: %s\n", model.Lifecycle.ValueString()))
+		fmt.Fprintf(&b, "\nlifecycle: %s\n", yamlQuote(model.Lifecycle.ValueString()))
 	}
 
 	if !model.Owner.IsNull() && !model.Owner.IsUnknown() {
 		b.WriteString("\nowner:\n")
 		b.WriteString("  - type: team\n")
-		b.WriteString(fmt.Sprintf("    id: %s\n", model.Owner.ValueString()))
+		fmt.Fprintf(&b, "    id: %s\n", yamlQuote(model.Owner.ValueString()))
 	}
 
 	if !model.Tags.IsNull() && !model.Tags.IsUnknown() {
@@ -344,7 +358,7 @@ func buildManifestYAML(model *EntityResourceModel) string {
 		if len(tags) > 0 {
 			b.WriteString("\ntags:\n")
 			for _, tag := range tags {
-				b.WriteString(fmt.Sprintf("  - %s\n", tag))
+				fmt.Fprintf(&b, "  - %s\n", yamlQuote(tag))
 			}
 		}
 	}
@@ -358,10 +372,10 @@ func buildManifestYAML(model *EntityResourceModel) string {
 		if err := json.Unmarshal([]byte(model.Links.ValueString()), &links); err == nil && len(links) > 0 {
 			b.WriteString("\nlinks:\n")
 			for _, link := range links {
-				b.WriteString(fmt.Sprintf("  - name: %s\n", link.Name))
-				b.WriteString(fmt.Sprintf("    url: %s\n", link.URL))
+				fmt.Fprintf(&b, "  - name: %s\n", yamlQuote(link.Name))
+				fmt.Fprintf(&b, "    url: %s\n", yamlQuote(link.URL))
 				if link.Icon != "" {
-					b.WriteString(fmt.Sprintf("    icon: %s\n", link.Icon))
+					fmt.Fprintf(&b, "    icon: %s\n", yamlQuote(link.Icon))
 				}
 			}
 		}
@@ -376,10 +390,10 @@ func buildManifestYAML(model *EntityResourceModel) string {
 		if err := json.Unmarshal([]byte(model.Relations.ValueString()), &relations); err == nil && len(relations) > 0 {
 			b.WriteString("\nrelations:\n")
 			for _, rel := range relations {
-				b.WriteString(fmt.Sprintf("  - type: %s\n", rel.Type))
-				b.WriteString(fmt.Sprintf("    target: %s\n", rel.Target))
+				fmt.Fprintf(&b, "  - type: %s\n", yamlQuote(rel.Type))
+				fmt.Fprintf(&b, "    target: %s\n", yamlQuote(rel.Target))
 				if rel.Via != "" {
-					b.WriteString(fmt.Sprintf("    via: %s\n", rel.Via))
+					fmt.Fprintf(&b, "    via: %s\n", yamlQuote(rel.Via))
 				}
 			}
 		}
@@ -394,7 +408,7 @@ func buildManifestYAML(model *EntityResourceModel) string {
 
 		if hasChangelog {
 			b.WriteString("  changelog:\n")
-			b.WriteString(fmt.Sprintf("    path: %s\n", model.ChangelogPath.ValueString()))
+			fmt.Fprintf(&b, "    path: %s\n", yamlQuote(model.ChangelogPath.ValueString()))
 		}
 
 		if hasLicenses {
@@ -411,27 +425,27 @@ func buildManifestYAML(model *EntityResourceModel) string {
 			if err := json.Unmarshal([]byte(model.Licenses.ValueString()), &licenses); err == nil && len(licenses) > 0 {
 				b.WriteString("  licenses:\n")
 				for _, lic := range licenses {
-					b.WriteString(fmt.Sprintf("    - title: %s\n", lic.Title))
+					fmt.Fprintf(&b, "    - title: %s\n", yamlQuote(lic.Title))
 					if lic.Vendor != "" {
-						b.WriteString(fmt.Sprintf("      vendor: %s\n", lic.Vendor))
+						fmt.Fprintf(&b, "      vendor: %s\n", yamlQuote(lic.Vendor))
 					}
 					if lic.Purchased != "" {
-						b.WriteString(fmt.Sprintf("      purchased: %s\n", lic.Purchased))
+						fmt.Fprintf(&b, "      purchased: %s\n", yamlQuote(lic.Purchased))
 					}
 					if lic.Expires != "" {
-						b.WriteString(fmt.Sprintf("      expires: %s\n", lic.Expires))
+						fmt.Fprintf(&b, "      expires: %s\n", yamlQuote(lic.Expires))
 					}
 					if lic.Seats > 0 {
-						b.WriteString(fmt.Sprintf("      seats: %d\n", lic.Seats))
+						fmt.Fprintf(&b, "      seats: %d\n", lic.Seats)
 					}
 					if lic.Cost != "" {
-						b.WriteString(fmt.Sprintf("      cost: %s\n", lic.Cost))
+						fmt.Fprintf(&b, "      cost: %s\n", yamlQuote(lic.Cost))
 					}
 					if lic.Contract != "" {
-						b.WriteString(fmt.Sprintf("      contract: %s\n", lic.Contract))
+						fmt.Fprintf(&b, "      contract: %s\n", yamlQuote(lic.Contract))
 					}
 					if lic.Notes != "" {
-						b.WriteString(fmt.Sprintf("      notes: %s\n", lic.Notes))
+						fmt.Fprintf(&b, "      notes: %s\n", yamlQuote(lic.Notes))
 					}
 				}
 			}
@@ -440,42 +454,42 @@ func buildManifestYAML(model *EntityResourceModel) string {
 
 	// Build interfaces section (http, grpc)
 	if !model.Interfaces.IsNull() && !model.Interfaces.IsUnknown() {
-		var ifaces map[string]interface{}
+		var ifaces map[string]any
 		if err := json.Unmarshal([]byte(model.Interfaces.ValueString()), &ifaces); err == nil && len(ifaces) > 0 {
 			b.WriteString("\ninterfaces:\n")
 			// Handle http interface
-			if httpIface, ok := ifaces["http"].(map[string]interface{}); ok {
+			if httpIface, ok := ifaces["http"].(map[string]any); ok {
 				b.WriteString("  http:\n")
 				if v, ok := httpIface["baseUrl"].(string); ok && v != "" {
-					b.WriteString(fmt.Sprintf("    baseUrl: %s\n", v))
+					fmt.Fprintf(&b, "    baseUrl: %s\n", yamlQuote(v))
 				}
 				if v, ok := httpIface["openapi"].(string); ok && v != "" {
-					b.WriteString(fmt.Sprintf("    openapi: %s\n", v))
+					fmt.Fprintf(&b, "    openapi: %s\n", yamlQuote(v))
 				}
-				if auth, ok := httpIface["auth"].(map[string]interface{}); ok {
+				if auth, ok := httpIface["auth"].(map[string]any); ok {
 					b.WriteString("    auth:\n")
 					if v, ok := auth["type"].(string); ok && v != "" {
-						b.WriteString(fmt.Sprintf("      type: %s\n", v))
+						fmt.Fprintf(&b, "      type: %s\n", yamlQuote(v))
 					}
 				}
-				if graphql, ok := httpIface["graphql"].(map[string]interface{}); ok {
+				if graphql, ok := httpIface["graphql"].(map[string]any); ok {
 					b.WriteString("    graphql:\n")
 					if v, ok := graphql["endpoint"].(string); ok && v != "" {
-						b.WriteString(fmt.Sprintf("      endpoint: %s\n", v))
+						fmt.Fprintf(&b, "      endpoint: %s\n", yamlQuote(v))
 					}
 					if v, ok := graphql["schema"].(string); ok && v != "" {
-						b.WriteString(fmt.Sprintf("      schema: %s\n", v))
+						fmt.Fprintf(&b, "      schema: %s\n", yamlQuote(v))
 					}
 				}
 			}
 			// Handle grpc interface
-			if grpcIface, ok := ifaces["grpc"].(map[string]interface{}); ok {
+			if grpcIface, ok := ifaces["grpc"].(map[string]any); ok {
 				b.WriteString("  grpc:\n")
 				if v, ok := grpcIface["package"].(string); ok && v != "" {
-					b.WriteString(fmt.Sprintf("    package: %s\n", v))
+					fmt.Fprintf(&b, "    package: %s\n", yamlQuote(v))
 				}
 				if v, ok := grpcIface["proto"].(string); ok && v != "" {
-					b.WriteString(fmt.Sprintf("    proto: %s\n", v))
+					fmt.Fprintf(&b, "    proto: %s\n", yamlQuote(v))
 				}
 			}
 		}
@@ -604,20 +618,14 @@ func mapEntityToState(ctx context.Context, entity *client.Entity, state *EntityR
 	state.Name = types.StringValue(entity.Service.Name)
 	state.Type = types.StringValue(entity.Service.Type)
 
-	if entity.Service.Tier != "" {
-		state.Tier = types.StringValue(entity.Service.Tier)
-	}
-
-	if entity.Description != "" {
-		state.Description = types.StringValue(entity.Description)
-	}
-
-	if entity.Lifecycle != "" {
-		state.Lifecycle = types.StringValue(entity.Lifecycle)
-	}
+	state.Tier = stringValueOrNull(entity.Service.Tier)
+	state.Description = stringValueOrNull(entity.Description)
+	state.Lifecycle = stringValueOrNull(entity.Lifecycle)
 
 	if len(entity.Owner) > 0 {
 		state.Owner = types.StringValue(entity.Owner[0].ID)
+	} else {
+		state.Owner = types.StringNull()
 	}
 
 	// Map tags from API response back to state
@@ -627,6 +635,8 @@ func mapEntityToState(ctx context.Context, entity *client.Entity, state *EntityR
 			tagValues[i] = types.StringValue(tag)
 		}
 		state.Tags, _ = types.SetValueFrom(ctx, types.StringType, tagValues)
+	} else {
+		state.Tags = types.SetNull(types.StringType)
 	}
 
 	// Map links from API response back to state as JSON string
@@ -635,6 +645,8 @@ func mapEntityToState(ctx context.Context, entity *client.Entity, state *EntityR
 		if err == nil {
 			state.Links = types.StringValue(string(linksJSON))
 		}
+	} else {
+		state.Links = types.StringNull()
 	}
 
 	// Map relations from API response back to state as JSON string
@@ -662,25 +674,28 @@ func mapEntityToState(ctx context.Context, entity *client.Entity, state *EntityR
 		if err == nil {
 			state.Relations = types.StringValue(string(relationsJSON))
 		}
+	} else {
+		state.Relations = types.StringNull()
 	}
 
-	// Map repository path (computed, read-only)
-	if entity.RepositoryPath != "" {
-		state.RepositoryPath = types.StringValue(entity.RepositoryPath)
-	}
+	state.RepositoryPath = stringValueOrNull(entity.RepositoryPath)
 
 	// Map interfaces from API response
-	if entity.Interfaces != nil && len(entity.Interfaces) > 0 {
+	if len(entity.Interfaces) > 0 {
 		ifacesJSON, err := json.Marshal(entity.Interfaces)
 		if err == nil {
 			state.Interfaces = types.StringValue(string(ifacesJSON))
 		}
+	} else {
+		state.Interfaces = types.StringNull()
 	}
 
 	// Map integrations (changelog, licenses)
 	if entity.Integrations != nil {
 		if entity.Integrations.Changelog != nil && entity.Integrations.Changelog.Path != "" {
 			state.ChangelogPath = types.StringValue(entity.Integrations.Changelog.Path)
+		} else {
+			state.ChangelogPath = types.StringNull()
 		}
 
 		if len(entity.Integrations.Licenses) > 0 {
@@ -688,14 +703,14 @@ func mapEntityToState(ctx context.Context, entity *client.Entity, state *EntityR
 			if err == nil {
 				state.Licenses = types.StringValue(string(licensesJSON))
 			}
+		} else {
+			state.Licenses = types.StringNull()
 		}
+	} else {
+		state.ChangelogPath = types.StringNull()
+		state.Licenses = types.StringNull()
 	}
 
-	if entity.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(entity.CreatedAt)
-	}
-
-	if entity.UpdatedAt != "" {
-		state.UpdatedAt = types.StringValue(entity.UpdatedAt)
-	}
+	state.CreatedAt = stringValueOrNull(entity.CreatedAt)
+	state.UpdatedAt = stringValueOrNull(entity.UpdatedAt)
 }

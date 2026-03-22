@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -105,6 +106,8 @@ func (d *IntegrationsDataSource) Configure(_ context.Context, req datasource.Con
 }
 
 func (d *IntegrationsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "reading integrations data source")
+
 	integrations, total, healthy, err := d.client.GetIntegrationsStatus(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Integrations", fmt.Sprintf("Could not get integrations status: %s", err))

@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/datasources"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/resources"
@@ -105,6 +106,22 @@ func (p *ShoehornProvider) Configure(ctx context.Context, req provider.Configure
 		timeout = time.Duration(config.Timeout.ValueInt64()) * time.Second
 	}
 
+	hostSource := "environment variable"
+	if !config.Host.IsNull() {
+		hostSource = "configuration"
+	}
+	apiKeySource := "environment variable"
+	if !config.APIKey.IsNull() {
+		apiKeySource = "configuration"
+	}
+	tflog.Info(ctx, "configuring Shoehorn provider", map[string]any{
+		"host":           host,
+		"host_source":    hostSource,
+		"api_key_source": apiKeySource,
+		"timeout":        timeout.String(),
+		"version":        p.version,
+	})
+
 	// Create client
 	c := client.NewClient(host, apiKey, timeout)
 
@@ -123,6 +140,7 @@ func (p *ShoehornProvider) Resources(_ context.Context) []func() resource.Resour
 		resources.NewIntegrationResource,
 		resources.NewK8sAgentResource,
 		resources.NewPlatformPolicyResource,
+		resources.NewGroupRoleMappingResource,
 	}
 }
 
@@ -135,5 +153,7 @@ func (p *ShoehornProvider) DataSources(_ context.Context) []func() datasource.Da
 		datasources.NewAPIKeysDataSource,
 		datasources.NewK8sAgentsDataSource,
 		datasources.NewPlatformPoliciesDataSource,
+		datasources.NewUsersDataSource,
+		datasources.NewGroupsDataSource,
 	}
 }

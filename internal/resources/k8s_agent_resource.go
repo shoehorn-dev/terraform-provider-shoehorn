@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -125,6 +126,8 @@ func (r *K8sAgentResource) Configure(_ context.Context, req resource.ConfigureRe
 }
 
 func (r *K8sAgentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating k8s agent")
+
 	var plan K8sAgentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -164,6 +167,8 @@ func (r *K8sAgentResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 func (r *K8sAgentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading k8s agent")
+
 	var state K8sAgentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -172,12 +177,18 @@ func (r *K8sAgentResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	agent, err := r.client.GetK8sAgent(ctx, state.ClusterID.ValueString())
 	if err != nil {
-		resp.State.RemoveResource(ctx)
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "k8s agent not found, removing from state", map[string]any{"cluster_id": state.ClusterID.ValueString()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Error Reading K8s Agent", fmt.Sprintf("Could not read K8s agent %s: %s", state.ClusterID.ValueString(), err))
 		return
 	}
 
 	// If agent is revoked, remove from state
 	if agent.Status == "revoked" {
+		tflog.Warn(ctx, "k8s agent revoked, removing from state", map[string]any{"cluster_id": state.ClusterID.ValueString()})
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -186,15 +197,9 @@ func (r *K8sAgentResource) Read(ctx context.Context, req resource.ReadRequest, r
 	state.Name = types.StringValue(agent.Name)
 	state.Status = types.StringValue(agent.Status)
 
-	if agent.TokenPrefix != "" {
-		state.TokenPrefix = types.StringValue(agent.TokenPrefix)
-	}
-	if agent.ExpiresAt != "" {
-		state.ExpiresAt = types.StringValue(agent.ExpiresAt)
-	}
-	if agent.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(agent.CreatedAt)
-	}
+	state.TokenPrefix = stringValueOrNull(agent.TokenPrefix)
+	state.ExpiresAt = stringValueOrNull(agent.ExpiresAt)
+	state.CreatedAt = stringValueOrNull(agent.CreatedAt)
 	// token is preserved from state - not returned by API after creation
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -206,6 +211,8 @@ func (r *K8sAgentResource) Update(_ context.Context, _ resource.UpdateRequest, r
 }
 
 func (r *K8sAgentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting k8s agent")
+
 	var state K8sAgentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -214,9 +221,10 @@ func (r *K8sAgentResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	clusterID := state.ClusterID.ValueString()
 
-	// Revoke first, then delete
+	// Revoke first, then delete. Revocation may fail if already revoked — warn but continue.
 	if err := r.client.RevokeK8sAgent(ctx, clusterID); err != nil {
-		// Revocation may fail if already revoked; try delete anyway
+		resp.Diagnostics.AddWarning("K8s Agent Revocation Failed",
+			fmt.Sprintf("Could not revoke K8s agent %s (may already be revoked): %s. Proceeding with deletion.", clusterID, err))
 	}
 
 	if err := r.client.DeleteK8sAgent(ctx, clusterID); err != nil {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -120,6 +121,8 @@ func (r *PlatformPolicyResource) Configure(_ context.Context, req resource.Confi
 }
 
 func (r *PlatformPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating platform policy")
+
 	var plan PlatformPolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -149,6 +152,8 @@ func (r *PlatformPolicyResource) Create(ctx context.Context, req resource.Create
 }
 
 func (r *PlatformPolicyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading platform policy")
+
 	var state PlatformPolicyResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -157,6 +162,11 @@ func (r *PlatformPolicyResource) Read(ctx context.Context, req resource.ReadRequ
 
 	policy, err := r.client.GetPolicy(ctx, state.Key.ValueString())
 	if err != nil {
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "platform policy not found, removing from state", map[string]any{"key": state.Key.ValueString()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Error Reading Policy", fmt.Sprintf("Could not read policy %s: %s", state.Key.ValueString(), err))
 		return
 	}
@@ -166,6 +176,8 @@ func (r *PlatformPolicyResource) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *PlatformPolicyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Debug(ctx, "updating platform policy")
+
 	var plan PlatformPolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -186,7 +198,8 @@ func (r *PlatformPolicyResource) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *PlatformPolicyResource) Delete(_ context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *PlatformPolicyResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting platform policy (state only)")
 	// Policies cannot be deleted - they are pre-seeded.
 	// Removing from Terraform state only. The policy remains in Shoehorn.
 }
@@ -202,19 +215,9 @@ func mapPolicyToState(policy *client.PlatformPolicy, state *PlatformPolicyResour
 	state.Enabled = types.BoolValue(policy.Enabled)
 	state.System = types.BoolValue(policy.System)
 
-	if policy.Description != "" {
-		state.Description = types.StringValue(policy.Description)
-	}
-	if policy.Category != "" {
-		state.Category = types.StringValue(policy.Category)
-	}
-	if policy.Enforcement != "" {
-		state.Enforcement = types.StringValue(policy.Enforcement)
-	}
-	if policy.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(policy.CreatedAt)
-	}
-	if policy.UpdatedAt != "" {
-		state.UpdatedAt = types.StringValue(policy.UpdatedAt)
-	}
+	state.Description = stringValueOrNull(policy.Description)
+	state.Category = stringValueOrNull(policy.Category)
+	state.Enforcement = types.StringValue(policy.Enforcement) // Required field — must never be null
+	state.CreatedAt = stringValueOrNull(policy.CreatedAt)
+	state.UpdatedAt = stringValueOrNull(policy.UpdatedAt)
 }

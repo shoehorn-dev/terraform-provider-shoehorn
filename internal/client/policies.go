@@ -60,7 +60,7 @@ func (c *Client) GetPolicy(ctx context.Context, key string) (*PlatformPolicy, er
 		}
 	}
 
-	return nil, fmt.Errorf("policy %q not found", key)
+	return nil, fmt.Errorf("policy %q: %w", key, ErrNotFound)
 }
 
 // UpdatePolicy updates a platform policy by ID.

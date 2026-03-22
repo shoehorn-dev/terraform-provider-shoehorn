@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -106,6 +107,8 @@ func (r *FeatureFlagResource) Configure(_ context.Context, req resource.Configur
 }
 
 func (r *FeatureFlagResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Debug(ctx, "creating feature flag")
+
 	var plan FeatureFlagResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -128,6 +131,8 @@ func (r *FeatureFlagResource) Create(ctx context.Context, req resource.CreateReq
 }
 
 func (r *FeatureFlagResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "reading feature flag")
+
 	var state FeatureFlagResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -136,6 +141,11 @@ func (r *FeatureFlagResource) Read(ctx context.Context, req resource.ReadRequest
 
 	flag, err := r.client.GetFeatureFlag(ctx, state.Key.ValueString())
 	if err != nil {
+		if client.IsNotFound(err) {
+			tflog.Warn(ctx, "feature flag not found, removing from state", map[string]any{"key": state.Key.ValueString()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Error Reading Feature Flag", fmt.Sprintf("Could not read feature flag %s: %s", state.Key.ValueString(), err))
 		return
 	}
@@ -145,6 +155,8 @@ func (r *FeatureFlagResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *FeatureFlagResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Debug(ctx, "updating feature flag")
+
 	var plan FeatureFlagResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -167,6 +179,8 @@ func (r *FeatureFlagResource) Update(ctx context.Context, req resource.UpdateReq
 }
 
 func (r *FeatureFlagResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Debug(ctx, "deleting feature flag")
+
 	var state FeatureFlagResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -189,13 +203,7 @@ func mapFeatureFlagToState(flag *client.FeatureFlag, state *FeatureFlagResourceM
 	state.Name = types.StringValue(flag.Name)
 	state.DefaultEnabled = types.BoolValue(flag.DefaultEnabled)
 
-	if flag.Description != "" {
-		state.Description = types.StringValue(flag.Description)
-	}
-	if flag.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(flag.CreatedAt)
-	}
-	if flag.UpdatedAt != "" {
-		state.UpdatedAt = types.StringValue(flag.UpdatedAt)
-	}
+	state.Description = stringValueOrNull(flag.Description)
+	state.CreatedAt = stringValueOrNull(flag.CreatedAt)
+	state.UpdatedAt = stringValueOrNull(flag.UpdatedAt)
 }

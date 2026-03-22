@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -99,6 +100,8 @@ func (d *K8sAgentsDataSource) Configure(_ context.Context, req datasource.Config
 }
 
 func (d *K8sAgentsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "reading k8s agents data source")
+
 	agents, err := d.client.ListK8sAgents(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading K8s Agents", fmt.Sprintf("Could not list K8s agents: %s", err))

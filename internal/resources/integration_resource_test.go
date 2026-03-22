@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -168,5 +169,28 @@ func TestMapIntegrationToState_EmptyOptionalFields(t *testing.T) {
 	}
 	if state.Name.ValueString() != "Slack" {
 		t.Errorf("Name = %q, want %q", state.Name.ValueString(), "Slack")
+	}
+}
+
+func TestMapIntegrationToState_ClearsOptionalFields(t *testing.T) {
+	state := &IntegrationResourceModel{
+		Status: types.StringValue("active"),
+		TeamID: types.StringValue("team-old"),
+	}
+
+	integration := &client.Integration{
+		ID:   2,
+		Name: "Slack",
+		Type: "slack",
+		// Status and TeamID are empty — cleared
+	}
+
+	mapIntegrationToState(integration, state)
+
+	if !state.Status.IsNull() {
+		t.Errorf("Status should be null when API returns empty, got %q", state.Status.ValueString())
+	}
+	if !state.TeamID.IsNull() {
+		t.Errorf("TeamID should be null when API returns empty, got %q", state.TeamID.ValueString())
 	}
 }

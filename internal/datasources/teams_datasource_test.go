@@ -2,6 +2,9 @@ package datasources
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -56,5 +59,42 @@ func TestTeamsDataSource_Configure_WrongType(t *testing.T) {
 
 	if !resp.Diagnostics.HasError() {
 		t.Error("expected error for wrong provider data type")
+	}
+}
+
+func TestTeamsDataSource_Configure_WithMockServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"teams": []map[string]any{
+				{"id": "team-1", "name": "Platform", "slug": "platform"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	c := client.NewClient(server.URL, "test-key", 30*time.Second)
+
+	// Verify client can successfully talk to the mock server
+	teams, err := c.ListTeams(context.Background())
+	if err != nil {
+		t.Fatalf("ListTeams() error = %v", err)
+	}
+	if len(teams) != 1 {
+		t.Errorf("team count = %d, want 1", len(teams))
+	}
+
+	// Verify datasource configures with this client
+	d := &TeamsDataSource{}
+	configResp := &datasource.ConfigureResponse{}
+	d.Configure(context.Background(), datasource.ConfigureRequest{
+		ProviderData: c,
+	}, configResp)
+
+	if configResp.Diagnostics.HasError() {
+		t.Fatalf("unexpected configure error: %v", configResp.Diagnostics)
+	}
+	if d.client != c {
+		t.Fatal("client not set after Configure")
 	}
 }

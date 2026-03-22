@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -340,5 +343,103 @@ func TestClient_NilBody_NoContentType(t *testing.T) {
 	_, err := c.Get(context.Background(), "/test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_Retry_On5xx(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if int(n) < maxRetries {
+			w.WriteHeader(http.StatusBadGateway)
+			w.Write([]byte(`Bad Gateway`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	resp, err := c.Get(context.Background(), "/api/v1/test")
+	if err != nil {
+		t.Fatalf("expected success after retries, got error: %v", err)
+	}
+
+	var result map[string]bool
+	if err := json.Unmarshal(resp, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !result["ok"] {
+		t.Error("expected ok=true in response")
+	}
+
+	got := int(atomic.LoadInt32(&attempts))
+	if got != maxRetries {
+		t.Errorf("attempts = %d, want %d", got, maxRetries)
+	}
+}
+
+func TestClient_Retry_On5xx_ExhaustsRetries(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`Service Unavailable`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.Get(context.Background(), "/api/v1/test")
+	if err == nil {
+		t.Fatal("expected error after exhausting retries, got nil")
+	}
+
+	got := int(atomic.LoadInt32(&attempts))
+	if got != maxRetries {
+		t.Errorf("attempts = %d, want %d (maxRetries)", got, maxRetries)
+	}
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError wrapped in error, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("StatusCode = %d, want %d", apiErr.StatusCode, http.StatusServiceUnavailable)
+	}
+
+	// Verify the wrapping message indicates retries were exhausted
+	if !strings.Contains(err.Error(), "request failed after") {
+		t.Errorf("error should contain 'request failed after', got: %v", err)
+	}
+}
+
+func TestIsRetryable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil error", err: nil, want: false},
+		{name: "EOF", err: fmt.Errorf("read: EOF"), want: true},
+		{name: "connection reset", err: fmt.Errorf("read: connection reset by peer"), want: true},
+		{name: "connection refused", err: fmt.Errorf("dial tcp: connection refused"), want: true},
+		{name: "broken pipe", err: fmt.Errorf("write: broken pipe"), want: true},
+		{name: "context deadline exceeded", err: fmt.Errorf("context deadline exceeded"), want: true},
+		{name: "Client.Timeout", err: fmt.Errorf("net/http: request canceled (Client.Timeout exceeded)"), want: true},
+		{name: "context canceled", err: context.Canceled, want: false},
+		{name: "unrelated error", err: fmt.Errorf("permission denied"), want: false},
+		{name: "API error", err: &APIError{StatusCode: 400, Message: "bad request"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isRetryable(tt.err)
+			if got != tt.want {
+				t.Errorf("isRetryable(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }
