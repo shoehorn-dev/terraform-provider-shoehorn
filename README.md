@@ -1,8 +1,5 @@
 # Shoehorn Terraform Provider
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/shoehorn-dev/terraform-provider-shoehorn/badge)](https://scorecard.dev/viewer/?uri=github.com/shoehorn-dev/terraform-provider-shoehorn)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9952/badge)](https://www.bestpractices.dev/projects/9952)
-[![Go Report Card](https://goreportcard.com/badge/github.com/shoehorn-dev/terraform-provider-shoehorn)](https://goreportcard.com/report/github.com/shoehorn-dev/terraform-provider-shoehorn)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Terraform Registry](https://img.shields.io/badge/Terraform-Registry-blueviolet)](https://registry.terraform.io/providers/shoehorn-dev/shoehorn/latest)
 
