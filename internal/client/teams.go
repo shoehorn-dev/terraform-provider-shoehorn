@@ -120,6 +120,11 @@ func (c *Client) CreateTeam(ctx context.Context, req CreateTeamRequest) (*Team, 
 		return nil, fmt.Errorf("unmarshal create team response: %w", err)
 	}
 
+	// Use top-level members if team.members is empty
+	if len(resp.Team.Members) == 0 && len(resp.Members) > 0 {
+		resp.Team.Members = resp.Members
+	}
+
 	return &resp.Team, nil
 }
 
@@ -133,6 +138,11 @@ func (c *Client) UpdateTeam(ctx context.Context, id string, req UpdateTeamReques
 	var resp teamResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("unmarshal update team response: %w", err)
+	}
+
+	// Use top-level members if team.members is empty
+	if len(resp.Team.Members) == 0 && len(resp.Members) > 0 {
+		resp.Team.Members = resp.Members
 	}
 
 	return &resp.Team, nil
