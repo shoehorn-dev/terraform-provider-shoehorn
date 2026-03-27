@@ -152,9 +152,19 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	team, err := r.client.CreateTeam(ctx, createReq)
 	if err != nil {
+		if client.IsAlreadyExists(err) {
+			resp.Diagnostics.AddError(
+				"Team Already Exists",
+				fmt.Sprintf("A team with slug %q already exists. Use `terraform import shoehorn_team.<name> <team-id>` to adopt it.", plan.Slug.ValueString()),
+			)
+			return
+		}
 		resp.Diagnostics.AddError("Error Creating Team", fmt.Sprintf("Could not create team: %s", err))
 		return
 	}
+
+	// Save planned members before mapTeamToState overwrites them
+	plannedMembers := plan.Members
 
 	// Save partial state immediately so the team is tracked even if member addition fails
 	mapTeamToState(team, &plan)
@@ -163,10 +173,10 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	// Add members if specified
-	if !plan.Members.IsNull() && !plan.Members.IsUnknown() {
+	// Add members if specified (use saved plan value, not the overwritten one)
+	if !plannedMembers.IsNull() && !plannedMembers.IsUnknown() {
 		var members []client.AddMemberRequest
-		if err := json.Unmarshal([]byte(plan.Members.ValueString()), &members); err != nil {
+		if err := json.Unmarshal([]byte(plannedMembers.ValueString()), &members); err != nil {
 			resp.Diagnostics.AddError("Invalid Members JSON", fmt.Sprintf("Team was created but members could not be parsed: %s. Fix the members JSON configuration and run terraform apply again.", err))
 			return
 		}
@@ -181,7 +191,6 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 				return
 			}
 			// Update state with members; preserve planned members if API omits them
-			plannedMembers := plan.Members
 			mapTeamToState(team, &plan)
 			if plan.Members.IsNull() && !plannedMembers.IsNull() {
 				plan.Members = plannedMembers
