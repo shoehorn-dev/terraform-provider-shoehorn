@@ -10,13 +10,17 @@ Terraform provider for managing [Shoehorn](https://shoehorn.dev) Internal Develo
 - **Catalog Entities** - Define services, libraries, APIs, and infrastructure as code with full metadata (links, relations, licenses, interfaces)
 - **Teams** - Manage teams with members and role assignments
 - **Feature Flags** - Toggle feature flags across environments
-- **Tenant Settings** - Configure portal branding and appearance
+- **Tenant Settings** - Configure portal branding, appearance, hidden pages, and forge settings
 - **Platform Policies** - Enforce organizational standards and governance
 - **API Keys** - Provision API keys for service-to-service authentication
 - **User Roles** - Assign RBAC roles to users
 - **Group Role Mappings** - Map IdP groups to Cerbos roles so group members inherit permissions
 - **Integrations** - Configure third-party integrations (GitHub, PagerDuty, etc.)
 - **Kubernetes Agents** - Register K8s cluster agents for workload discovery
+- **Governance Actions** - Track and manage governance action items with priority, SLA, and assignment
+- **Forge Molds** - Define workflow templates as code with input schemas and actions
+- **Forge Approval Policies** - Configure multi-step approval workflows for forge operations
+- **Marketplace Installations** - Install and configure marketplace addons
 
 ## Requirements
 
@@ -260,6 +264,12 @@ resource "shoehorn_tenant_settings" "main" {
   company_name         = "Acme Corp"
   primary_color        = "#3b82f6"
   default_theme        = "system"
+  hidden_pages         = ["forge", "insights"]
+
+  forge {
+    allowed_orgs = ["my-org", "my-other-org"]
+    default_org  = "my-org"
+  }
 }
 ```
 
@@ -368,6 +378,148 @@ resource "shoehorn_group_role_mapping" "platform_editors" {
 
 **Computed**: `id` (format: `group_name:role_name`)
 
+### shoehorn_governance_action
+
+Manages a governance action item for tracking remediation and compliance work.
+
+```hcl
+resource "shoehorn_governance_action" "update_docs" {
+  entity_id   = "service:my-service"
+  title       = "Update API documentation"
+  priority    = "high"
+  source_type = "policy"
+  description = "API docs are outdated and need to reflect the v2 endpoints"
+  assigned_to = "user-123"
+  sla_days    = 14
+}
+```
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `entity_id` | String | Yes | The entity this action applies to (e.g., `service:my-service`) |
+| `title` | String | Yes | Action item title |
+| `priority` | String | Yes | Priority level: `critical`, `high`, `medium`, `low` |
+| `source_type` | String | Yes | Origin type: `scorecard`, `security`, `policy` |
+| `description` | String | No | Detailed description of the action |
+| `source_id` | String | No | Identifier of the originating source |
+| `assigned_to` | String | No | User ID of the assignee |
+| `sla_days` | Number | No | Number of days allowed to resolve the action |
+
+**Computed**: `id`, `status`, `due_date`, `created_at`, `updated_at`
+
+**Import**: `terraform import shoehorn_governance_action.example <id>`
+
+### shoehorn_forge_mold
+
+Defines a forge workflow template with input schemas and actions.
+
+```hcl
+resource "shoehorn_forge_mold" "new_service" {
+  slug        = "create-microservice"
+  name        = "Create Microservice"
+  description = "Scaffold a new Go microservice with CI/CD pipeline"
+  version     = "1.0.0"
+  visibility  = "tenant"
+  category    = "scaffolding"
+  tags        = ["go", "microservice", "cicd"]
+
+  schema_json = jsonencode({
+    properties = {
+      service_name = { type = "string", description = "Service name" }
+      team         = { type = "string", description = "Owning team" }
+    }
+    required = ["service_name", "team"]
+  })
+
+  actions {
+    action  = "create-repo"
+    label   = "Create Repository"
+    primary = true
+  }
+}
+```
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `slug` | String | Yes | Unique slug identifier. Forces replacement if changed. |
+| `name` | String | No | Display name for the mold |
+| `description` | String | No | Description of what the mold does |
+| `version` | String | No | Semantic version string |
+| `visibility` | String | No | Visibility scope (e.g., `tenant`) |
+| `category` | String | No | Category for organization (e.g., `scaffolding`) |
+| `schema_json` | JSON String | No | JSON Schema defining the mold's input parameters |
+| `defaults_json` | JSON String | No | Default values for schema properties |
+| `actions` | Block List | No | Action blocks with `action`, `label`, and `primary` attributes |
+| `tags` | Set of String | No | Tags for categorization |
+| `icon` | String | No | Icon identifier |
+
+**Computed**: `id`, `published`, `created_at`, `updated_at`
+
+**Import by slug**: `terraform import shoehorn_forge_mold.example <slug>`
+
+### shoehorn_forge_approval_policy
+
+Configures a multi-step approval workflow for forge operations.
+
+```hcl
+resource "shoehorn_forge_approval_policy" "production_deploy" {
+  name        = "Production Deployment Approval"
+  description = "Requires team lead and SRE approval for production deployments"
+  enabled     = true
+
+  steps {
+    step        = 1
+    name        = "Team Lead Review"
+    approvers   = ["lead@example.com"]
+    require_all = true
+  }
+
+  steps {
+    step        = 2
+    name        = "SRE Approval"
+    approvers   = ["sre-oncall@example.com", "sre-lead@example.com"]
+    require_all = false
+  }
+}
+```
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `name` | String | Yes | Policy name |
+| `description` | String | No | Description of the approval policy |
+| `enabled` | Boolean | No | Whether the policy is active |
+| `steps` | Block List | No | Approval steps, each with `step` (order), `name`, `approvers` (list of emails), and `require_all` (boolean) |
+
+**Computed**: `id`, `created_at`, `updated_at`
+
+**Import**: `terraform import shoehorn_forge_approval_policy.example <id>`
+
+### shoehorn_marketplace_installation
+
+Installs and configures a marketplace addon.
+
+```hcl
+resource "shoehorn_marketplace_installation" "cost_tracker" {
+  slug    = "cost-tracker"
+  enabled = true
+
+  config_json = jsonencode({
+    refresh_interval = "1h"
+    currency         = "USD"
+  })
+}
+```
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `slug` | String | Yes | Marketplace addon slug. Forces replacement if changed. |
+| `enabled` | Boolean | No | Whether the installation is active |
+| `config_json` | JSON String | No | Addon-specific configuration as JSON |
+
+**Computed**: `id`, `created_at`, `updated_at`
+
+**Import by slug**: `terraform import shoehorn_marketplace_installation.example <slug>`
+
 ## Data Sources
 
 All resources have corresponding data sources for reading existing state:
@@ -399,6 +551,26 @@ data "shoehorn_users" "all" {}
 
 # List all IdP groups with role mappings
 data "shoehorn_groups" "all" {}
+
+# List governance actions (filterable by priority and status)
+data "shoehorn_governance_actions" "critical" {
+  priority = "critical"
+  status   = "open"
+}
+
+# List all forge molds
+data "shoehorn_forge_molds" "all" {}
+
+# List marketplace items (filterable by kind)
+data "shoehorn_marketplace_items" "addons" {
+  kind = "addon"
+}
+
+# List gitops resources (filterable by cluster and tool)
+data "shoehorn_gitops_resources" "production" {
+  cluster_id = "prod-us-east-1"
+  tool       = "argocd"
+}
 ```
 
 ## Importing Existing Resources
@@ -420,6 +592,18 @@ terraform import shoehorn_platform_policy.require_docs required-entity-docs
 
 # Import a group role mapping (format: group_name:role_name)
 terraform import shoehorn_group_role_mapping.example "team-developer-platform:entity:editor"
+
+# Import a governance action by ID
+terraform import shoehorn_governance_action.example action-abc-123
+
+# Import a forge mold by slug
+terraform import shoehorn_forge_mold.example create-microservice
+
+# Import a forge approval policy by ID
+terraform import shoehorn_forge_approval_policy.example policy-abc-123
+
+# Import a marketplace installation by slug
+terraform import shoehorn_marketplace_installation.example cost-tracker
 ```
 
 ## Development

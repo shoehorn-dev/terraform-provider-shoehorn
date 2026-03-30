@@ -141,6 +141,10 @@ func (p *ShoehornProvider) Resources(_ context.Context) []func() resource.Resour
 		resources.NewK8sAgentResource,
 		resources.NewPlatformPolicyResource,
 		resources.NewGroupRoleMappingResource,
+		resources.NewForgeMoldResource,
+		resources.NewForgeApprovalPolicyResource,
+		resources.NewMarketplaceInstallationResource,
+		resources.NewGovernanceActionResource,
 	}
 }
 
@@ -155,5 +159,9 @@ func (p *ShoehornProvider) DataSources(_ context.Context) []func() datasource.Da
 		datasources.NewPlatformPoliciesDataSource,
 		datasources.NewUsersDataSource,
 		datasources.NewGroupsDataSource,
+		datasources.NewForgeMoldsDataSource,
+		datasources.NewMarketplaceItemsDataSource,
+		datasources.NewGitOpsResourcesDataSource,
+		datasources.NewGovernanceActionsDataSource,
 	}
 }
