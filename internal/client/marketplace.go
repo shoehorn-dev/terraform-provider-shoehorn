@@ -24,16 +24,16 @@ type MarketplaceItem struct {
 // MarketplaceInstallation represents an installed marketplace item.
 type MarketplaceInstallation struct {
 	ID          string                 `json:"id"`
-	Slug        string                 `json:"item_slug"`
-	Kind        string                 `json:"item_kind"`
-	Version     string                 `json:"item_version"`
+	Slug        string                 `json:"itemSlug"`
+	Kind        string                 `json:"itemKind"`
+	Version     string                 `json:"itemVersion"`
 	Enabled     bool                   `json:"enabled"`
 	Config      map[string]interface{} `json:"config,omitempty"`
-	SyncStatus  string                 `json:"sync_status,omitempty"`
-	LastSyncAt  string                 `json:"last_sync_at,omitempty"`
-	InstalledBy string                 `json:"installed_by,omitempty"`
-	CreatedAt   string                 `json:"created_at,omitempty"`
-	UpdatedAt   string                 `json:"updated_at,omitempty"`
+	SyncStatus  string                 `json:"syncStatus,omitempty"`
+	LastSyncAt  string                 `json:"lastSyncAt,omitempty"`
+	InstalledBy string                 `json:"installedBy,omitempty"`
+	CreatedAt   string                 `json:"createdAt,omitempty"`
+	UpdatedAt   string                 `json:"updatedAt,omitempty"`
 }
 
 // marketplaceItemsResponse wraps the list catalog response.
@@ -106,33 +106,35 @@ func (c *Client) ListMarketplaceInstallations(ctx context.Context) ([]Marketplac
 }
 
 // GetMarketplaceInstallation retrieves an installed marketplace item by slug.
+// The API returns the installation object directly (not wrapped in an envelope).
 func (c *Client) GetMarketplaceInstallation(ctx context.Context, slug string) (*MarketplaceInstallation, error) {
 	body, err := c.Get(ctx, fmt.Sprintf("/api/v1/marketplace/installed/%s", url.PathEscape(slug)))
 	if err != nil {
 		return nil, fmt.Errorf("get marketplace installation %q: %w", slug, err)
 	}
 
-	var resp marketplaceInstallationResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
+	var installation MarketplaceInstallation
+	if err := json.Unmarshal(body, &installation); err != nil {
 		return nil, fmt.Errorf("unmarshal marketplace installation response: %w", err)
 	}
 
-	return &resp.Installation, nil
+	return &installation, nil
 }
 
 // InstallMarketplaceItem installs a marketplace item by slug.
+// The API returns the installation object directly (not wrapped in an envelope).
 func (c *Client) InstallMarketplaceItem(ctx context.Context, slug string) (*MarketplaceInstallation, error) {
 	body, err := c.Post(ctx, "/api/v1/marketplace/install", marketplaceInstallRequest{Slug: slug})
 	if err != nil {
 		return nil, fmt.Errorf("install marketplace item %q: %w", slug, err)
 	}
 
-	var resp marketplaceInstallationResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
+	var installation MarketplaceInstallation
+	if err := json.Unmarshal(body, &installation); err != nil {
 		return nil, fmt.Errorf("unmarshal install marketplace response: %w", err)
 	}
 
-	return &resp.Installation, nil
+	return &installation, nil
 }
 
 // UninstallMarketplaceItem uninstalls a marketplace item by slug.
@@ -168,10 +170,10 @@ func (c *Client) UpdateMarketplaceItemConfig(ctx context.Context, slug string, c
 		return nil, fmt.Errorf("update marketplace item config %q: %w", slug, err)
 	}
 
-	var resp marketplaceInstallationResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
+	var installation MarketplaceInstallation
+	if err := json.Unmarshal(body, &installation); err != nil {
 		return nil, fmt.Errorf("unmarshal update marketplace config response: %w", err)
 	}
 
-	return &resp.Installation, nil
+	return &installation, nil
 }
