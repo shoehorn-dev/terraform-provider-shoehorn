@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Terraform Registry](https://img.shields.io/badge/Terraform-Registry-blueviolet)](https://registry.terraform.io/providers/shoehorn-dev/shoehorn/latest)
 
-Terraform provider for managing [Shoehorn](https://shoehorn.dev) Internal Developer Portal resources as code.
+Terraform provider for managing [Shoehorn](https://shoehorn.dev) Intelligent Developer Platform resources as code.
 
 ## Features
 
