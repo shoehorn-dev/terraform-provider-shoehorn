@@ -161,7 +161,11 @@ func TestBuildAppearanceFromModel(t *testing.T) {
 		DefaultTheme: types.StringValue("dark"),
 	}
 
-	appearance := buildAppearanceFromModel(model)
+	var diags diag.Diagnostics
+	appearance := buildAppearanceFromModel(context.Background(), model, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
 
 	if appearance.PrimaryColor != "#3b82f6" {
 		t.Errorf("PrimaryColor = %q, want %q", appearance.PrimaryColor, "#3b82f6")

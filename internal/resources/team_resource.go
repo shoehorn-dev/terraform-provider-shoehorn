@@ -309,8 +309,8 @@ func mapTeamToState(team *client.Team, state *TeamResourceModel) {
 	state.IsActive = types.BoolValue(team.IsActive)
 	state.MemberCount = types.Int64Value(int64(team.MemberCount))
 
-	state.DisplayName = stringValueOrNull(team.DisplayName)
-	state.Description = stringValueOrNull(team.Description)
+	state.DisplayName = preserveOrNull(team.DisplayName, state.DisplayName)
+	state.Description = preserveOrNull(team.Description, state.Description)
 	state.CreatedAt = stringValueOrNull(team.CreatedAt)
 	state.UpdatedAt = stringValueOrNull(team.UpdatedAt)
 

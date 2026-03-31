@@ -12,21 +12,29 @@ type TenantSettings struct {
 	TenantID     string               `json:"tenant_id,omitempty"`
 	Appearance   AppearanceSettings   `json:"appearance"`
 	Announcement AnnouncementSettings `json:"announcement,omitempty"`
+	Forge        ForgeSettings        `json:"forge,omitempty"`
 	CreatedAt    string               `json:"created_at,omitempty"`
 	UpdatedAt    string               `json:"updated_at,omitempty"`
 }
 
 // AppearanceSettings represents the appearance configuration.
 type AppearanceSettings struct {
-	PrimaryColor        string `json:"primary_color,omitempty"`
-	SecondaryColor      string `json:"secondary_color,omitempty"`
-	AccentColor         string `json:"accent_color,omitempty"`
-	LogoURL             string `json:"logo_url,omitempty"`
-	FaviconURL          string `json:"favicon_url,omitempty"`
-	DefaultTheme        string `json:"default_theme,omitempty"`
-	PlatformName        string `json:"platform_name,omitempty"`
-	PlatformDescription string `json:"platform_description,omitempty"`
-	CompanyName         string `json:"company_name,omitempty"`
+	PrimaryColor        string   `json:"primary_color,omitempty"`
+	SecondaryColor      string   `json:"secondary_color,omitempty"`
+	AccentColor         string   `json:"accent_color,omitempty"`
+	LogoURL             string   `json:"logo_url,omitempty"`
+	FaviconURL          string   `json:"favicon_url,omitempty"`
+	DefaultTheme        string   `json:"default_theme,omitempty"`
+	PlatformName        string   `json:"platform_name,omitempty"`
+	PlatformDescription string   `json:"platform_description,omitempty"`
+	CompanyName         string   `json:"company_name,omitempty"`
+	HiddenPages         []string `json:"hidden_pages,omitempty"`
+}
+
+// ForgeSettings represents the forge configuration for a tenant.
+type ForgeSettings struct {
+	AllowedOrgs []string `json:"allowed_orgs,omitempty"`
+	DefaultOrg  string   `json:"default_org,omitempty"`
 }
 
 // AnnouncementSettings represents announcement bar configuration.
@@ -44,6 +52,7 @@ type AnnouncementSettings struct {
 type UpdateSettingsRequest struct {
 	Appearance   AppearanceSettings    `json:"appearance"`
 	Announcement *AnnouncementSettings `json:"announcement,omitempty"`
+	Forge        *ForgeSettings        `json:"forge,omitempty"`
 }
 
 // GetSettings retrieves the tenant settings.
