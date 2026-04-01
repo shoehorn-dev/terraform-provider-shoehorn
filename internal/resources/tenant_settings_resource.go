@@ -42,7 +42,9 @@ type TenantSettingsResourceModel struct {
 	PlatformName        types.String `tfsdk:"platform_name"`
 	PlatformDescription types.String `tfsdk:"platform_description"`
 	CompanyName         types.String `tfsdk:"company_name"`
+	HiddenPages         types.List   `tfsdk:"hidden_pages"`
 	Announcement        types.Object `tfsdk:"announcement"`
+	Forge               types.Object `tfsdk:"forge"`
 	CreatedAt           types.String `tfsdk:"created_at"`
 	UpdatedAt           types.String `tfsdk:"updated_at"`
 }
@@ -56,6 +58,12 @@ type AnnouncementSettingsModel struct {
 	LinkURL   types.String `tfsdk:"link_url"`
 	LinkText  types.String `tfsdk:"link_text"`
 	UpdatedAt types.String `tfsdk:"updated_at"`
+}
+
+// ForgeSettingsModel represents forge configuration.
+type ForgeSettingsModel struct {
+	AllowedOrgs types.List   `tfsdk:"allowed_orgs"`
+	DefaultOrg  types.String `tfsdk:"default_org"`
 }
 
 // NewTenantSettingsResource creates a new tenant settings resource.
@@ -109,12 +117,24 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"logo_url": schema.StringAttribute{
-				Description: "URL to the company logo.",
+				Description: "URL to the company logo (must be http:// or https://).",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^https?://`),
+						"must be an HTTP or HTTPS URL",
+					),
+				},
 			},
 			"favicon_url": schema.StringAttribute{
-				Description: "URL to the favicon.",
+				Description: "URL to the favicon (must be http:// or https://).",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^https?://`),
+						"must be an HTTP or HTTPS URL",
+					),
+				},
 			},
 			"default_theme": schema.StringAttribute{
 				Description: "Default theme for users. Valid values: light, dark, system.",
@@ -133,6 +153,11 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"company_name": schema.StringAttribute{
 				Description: "Company name.",
+				Optional:    true,
+			},
+			"hidden_pages": schema.ListAttribute{
+				ElementType: types.StringType,
+				Description: "List of page slugs to hide from non-admin users (e.g., forge, insights).",
 				Optional:    true,
 			},
 			"announcement": schema.SingleNestedAttribute{
@@ -163,9 +188,15 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 						Computed:    true,
 					},
 					"link_url": schema.StringAttribute{
-						Description: "Optional call-to-action link URL.",
+						Description: "Optional call-to-action link URL (must be http:// or https://).",
 						Optional:    true,
 						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.RegexMatches(
+								regexp.MustCompile(`^https?://`),
+								"must be an HTTP or HTTPS URL",
+							),
+						},
 					},
 					"link_text": schema.StringAttribute{
 						Description: "Optional call-to-action link text.",
@@ -174,6 +205,23 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 					},
 					"updated_at": schema.StringAttribute{
 						Description: "Announcement last update timestamp (used for dismiss tracking).",
+						Computed:    true,
+					},
+				},
+			},
+			"forge": schema.SingleNestedAttribute{
+				Description: "Forge configuration for scaffolding and templates.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"allowed_orgs": schema.ListAttribute{
+						ElementType: types.StringType,
+						Description: "List of GitHub organizations allowed for Forge templates.",
+						Optional:    true,
+						Computed:    true,
+					},
+					"default_org": schema.StringAttribute{
+						Description: "Default GitHub organization for Forge templates.",
+						Optional:    true,
 						Computed:    true,
 					},
 				},
@@ -216,8 +264,9 @@ func (r *TenantSettingsResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	appearance := buildAppearanceFromModel(&plan)
+	appearance := buildAppearanceFromModel(ctx, &plan, &resp.Diagnostics)
 	announcement := buildAnnouncementFromModel(ctx, &plan, &resp.Diagnostics)
+	forge := buildForgeFromModel(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -225,6 +274,7 @@ func (r *TenantSettingsResource) Create(ctx context.Context, req resource.Create
 	settings, err := r.client.UpdateSettings(ctx, client.UpdateSettingsRequest{
 		Appearance:   appearance,
 		Announcement: announcement,
+		Forge:        forge,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Tenant Settings", fmt.Sprintf("Could not create/update settings: %s", err))
@@ -269,8 +319,9 @@ func (r *TenantSettingsResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	appearance := buildAppearanceFromModel(&plan)
+	appearance := buildAppearanceFromModel(ctx, &plan, &resp.Diagnostics)
 	announcement := buildAnnouncementFromModel(ctx, &plan, &resp.Diagnostics)
+	forge := buildForgeFromModel(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -278,6 +329,7 @@ func (r *TenantSettingsResource) Update(ctx context.Context, req resource.Update
 	settings, err := r.client.UpdateSettings(ctx, client.UpdateSettingsRequest{
 		Appearance:   appearance,
 		Announcement: announcement,
+		Forge:        forge,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Tenant Settings", fmt.Sprintf("Could not update settings: %s", err))
@@ -301,18 +353,46 @@ func (r *TenantSettingsResource) ImportState(ctx context.Context, req resource.I
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func buildAppearanceFromModel(model *TenantSettingsResourceModel) client.AppearanceSettings {
-	return client.AppearanceSettings{
-		PrimaryColor:        model.PrimaryColor.ValueString(),
-		SecondaryColor:      model.SecondaryColor.ValueString(),
-		AccentColor:         model.AccentColor.ValueString(),
-		LogoURL:             model.LogoURL.ValueString(),
-		FaviconURL:          model.FaviconURL.ValueString(),
-		DefaultTheme:        model.DefaultTheme.ValueString(),
-		PlatformName:        model.PlatformName.ValueString(),
-		PlatformDescription: model.PlatformDescription.ValueString(),
-		CompanyName:         model.CompanyName.ValueString(),
+func buildAppearanceFromModel(ctx context.Context, model *TenantSettingsResourceModel, diags *diag.Diagnostics) client.AppearanceSettings {
+	appearance := client.AppearanceSettings{}
+	if !model.PrimaryColor.IsNull() && !model.PrimaryColor.IsUnknown() {
+		appearance.PrimaryColor = model.PrimaryColor.ValueString()
 	}
+	if !model.SecondaryColor.IsNull() && !model.SecondaryColor.IsUnknown() {
+		appearance.SecondaryColor = model.SecondaryColor.ValueString()
+	}
+	if !model.AccentColor.IsNull() && !model.AccentColor.IsUnknown() {
+		appearance.AccentColor = model.AccentColor.ValueString()
+	}
+	if !model.LogoURL.IsNull() && !model.LogoURL.IsUnknown() {
+		appearance.LogoURL = model.LogoURL.ValueString()
+	}
+	if !model.FaviconURL.IsNull() && !model.FaviconURL.IsUnknown() {
+		appearance.FaviconURL = model.FaviconURL.ValueString()
+	}
+	if !model.DefaultTheme.IsNull() && !model.DefaultTheme.IsUnknown() {
+		appearance.DefaultTheme = model.DefaultTheme.ValueString()
+	}
+	if !model.PlatformName.IsNull() && !model.PlatformName.IsUnknown() {
+		appearance.PlatformName = model.PlatformName.ValueString()
+	}
+	if !model.PlatformDescription.IsNull() && !model.PlatformDescription.IsUnknown() {
+		appearance.PlatformDescription = model.PlatformDescription.ValueString()
+	}
+	if !model.CompanyName.IsNull() && !model.CompanyName.IsUnknown() {
+		appearance.CompanyName = model.CompanyName.ValueString()
+	}
+
+	if !model.HiddenPages.IsNull() && !model.HiddenPages.IsUnknown() {
+		var pages []string
+		d := model.HiddenPages.ElementsAs(ctx, &pages, false)
+		diags.Append(d...)
+		if !d.HasError() {
+			appearance.HiddenPages = pages
+		}
+	}
+
+	return appearance
 }
 
 func buildAnnouncementFromModel(ctx context.Context, model *TenantSettingsResourceModel, diags *diag.Diagnostics) *client.AnnouncementSettings {
@@ -337,20 +417,74 @@ func buildAnnouncementFromModel(ctx context.Context, model *TenantSettingsResour
 	}
 }
 
+func buildForgeFromModel(ctx context.Context, model *TenantSettingsResourceModel, diags *diag.Diagnostics) *client.ForgeSettings {
+	if model.Forge.IsNull() || model.Forge.IsUnknown() {
+		return nil
+	}
+
+	var forge ForgeSettingsModel
+	d := model.Forge.As(ctx, &forge, basetypes.ObjectAsOptions{})
+	diags.Append(d...)
+	if d.HasError() {
+		return nil
+	}
+
+	result := &client.ForgeSettings{
+		DefaultOrg: forge.DefaultOrg.ValueString(),
+	}
+
+	if !forge.AllowedOrgs.IsNull() && !forge.AllowedOrgs.IsUnknown() {
+		var orgs []string
+		d := forge.AllowedOrgs.ElementsAs(ctx, &orgs, false)
+		diags.Append(d...)
+		if !d.HasError() {
+			result.AllowedOrgs = orgs
+		}
+	}
+
+	return result
+}
+
 func mapSettingsToState(ctx context.Context, settings *client.TenantSettings, state *TenantSettingsResourceModel, diags *diag.Diagnostics) {
 	state.ID = types.StringValue(settings.ID)
 
-	state.PrimaryColor = stringValueOrNull(settings.Appearance.PrimaryColor)
-	state.SecondaryColor = stringValueOrNull(settings.Appearance.SecondaryColor)
-	state.AccentColor = stringValueOrNull(settings.Appearance.AccentColor)
-	state.LogoURL = stringValueOrNull(settings.Appearance.LogoURL)
-	state.FaviconURL = stringValueOrNull(settings.Appearance.FaviconURL)
-	state.DefaultTheme = stringValueOrNull(settings.Appearance.DefaultTheme)
-	state.PlatformName = stringValueOrNull(settings.Appearance.PlatformName)
-	state.PlatformDescription = stringValueOrNull(settings.Appearance.PlatformDescription)
-	state.CompanyName = stringValueOrNull(settings.Appearance.CompanyName)
+	// For Optional fields, preserve plan/state value when API returns empty to avoid "" -> null drift
+	state.PrimaryColor = preserveOrNull(settings.Appearance.PrimaryColor, state.PrimaryColor)
+	state.SecondaryColor = preserveOrNull(settings.Appearance.SecondaryColor, state.SecondaryColor)
+	state.AccentColor = preserveOrNull(settings.Appearance.AccentColor, state.AccentColor)
+	state.LogoURL = preserveOrNull(settings.Appearance.LogoURL, state.LogoURL)
+	state.FaviconURL = preserveOrNull(settings.Appearance.FaviconURL, state.FaviconURL)
+	state.DefaultTheme = preserveOrNull(settings.Appearance.DefaultTheme, state.DefaultTheme)
+	state.PlatformName = preserveOrNull(settings.Appearance.PlatformName, state.PlatformName)
+	state.PlatformDescription = preserveOrNull(settings.Appearance.PlatformDescription, state.PlatformDescription)
+	state.CompanyName = preserveOrNull(settings.Appearance.CompanyName, state.CompanyName)
+
+	// Map hidden_pages
+	if len(settings.Appearance.HiddenPages) > 0 {
+		pages := make([]attr.Value, len(settings.Appearance.HiddenPages))
+		for i, p := range settings.Appearance.HiddenPages {
+			pages[i] = types.StringValue(p)
+		}
+		hiddenPagesList, d := types.ListValue(types.StringType, pages)
+		diags.Append(d...)
+		if !d.HasError() {
+			state.HiddenPages = hiddenPagesList
+		}
+	} else if state.HiddenPages.IsNull() || state.HiddenPages.IsUnknown() {
+		state.HiddenPages = types.ListNull(types.StringType)
+	}
+	// else: API returned empty but user set hidden_pages = [] -- keep their empty list
 
 	// Map announcement if present
+	announcementTypes := map[string]attr.Type{
+		"enabled":    types.BoolType,
+		"message":    types.StringType,
+		"type":       types.StringType,
+		"pinned":     types.BoolType,
+		"link_url":   types.StringType,
+		"link_text":  types.StringType,
+		"updated_at": types.StringType,
+	}
 	if settings.Announcement.Enabled || settings.Announcement.Message != "" {
 		announcementAttrs := map[string]attr.Value{
 			"enabled":    types.BoolValue(settings.Announcement.Enabled),
@@ -362,27 +496,48 @@ func mapSettingsToState(ctx context.Context, settings *client.TenantSettings, st
 			"updated_at": types.StringValue(settings.Announcement.UpdatedAt),
 		}
 
-		announcementTypes := map[string]attr.Type{
-			"enabled":    types.BoolType,
-			"message":    types.StringType,
-			"type":       types.StringType,
-			"pinned":     types.BoolType,
-			"link_url":   types.StringType,
-			"link_text":  types.StringType,
-			"updated_at": types.StringType,
-		}
-
 		announcementObj, d := types.ObjectValue(announcementTypes, announcementAttrs)
 		diags.Append(d...)
 		if !d.HasError() {
 			state.Announcement = announcementObj
 		}
+	} else {
+		state.Announcement = types.ObjectNull(announcementTypes)
 	}
 
-	if settings.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(settings.CreatedAt)
+	// Map forge if present
+	forgeTypes := map[string]attr.Type{
+		"allowed_orgs": types.ListType{ElemType: types.StringType},
+		"default_org":  types.StringType,
 	}
-	if settings.UpdatedAt != "" {
-		state.UpdatedAt = types.StringValue(settings.UpdatedAt)
+	if len(settings.Forge.AllowedOrgs) > 0 || settings.Forge.DefaultOrg != "" {
+		orgs := make([]attr.Value, len(settings.Forge.AllowedOrgs))
+		for i, o := range settings.Forge.AllowedOrgs {
+			orgs[i] = types.StringValue(o)
+		}
+		var allowedOrgsList basetypes.ListValue
+		if len(orgs) > 0 {
+			var d diag.Diagnostics
+			allowedOrgsList, d = types.ListValue(types.StringType, orgs)
+			diags.Append(d...)
+		} else {
+			allowedOrgsList = types.ListValueMust(types.StringType, []attr.Value{})
+		}
+
+		forgeAttrs := map[string]attr.Value{
+			"allowed_orgs": allowedOrgsList,
+			"default_org":  types.StringValue(settings.Forge.DefaultOrg),
+		}
+
+		forgeObj, d := types.ObjectValue(forgeTypes, forgeAttrs)
+		diags.Append(d...)
+		if !d.HasError() {
+			state.Forge = forgeObj
+		}
+	} else {
+		state.Forge = types.ObjectNull(forgeTypes)
 	}
+
+	state.CreatedAt = stringValueOrNull(settings.CreatedAt)
+	state.UpdatedAt = stringValueOrNull(settings.UpdatedAt)
 }

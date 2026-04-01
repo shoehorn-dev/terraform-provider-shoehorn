@@ -9,11 +9,26 @@ import (
 // stringValueOrNull returns a types.StringValue for non-empty strings,
 // or types.StringNull for empty strings. This ensures that optional fields
 // are properly cleared in Terraform state when the API returns empty values.
+// Use for Computed-only fields. For Optional user-settable fields, use preserveOrNull.
 func stringValueOrNull(s string) types.String {
 	if s == "" {
 		return types.StringNull()
 	}
 	return types.StringValue(s)
+}
+
+// preserveOrNull maps an API string to state, but preserves the existing state value
+// when the API returns empty and the user had explicitly set a value (e.g. "").
+// This prevents the "" -> null drift that causes "inconsistent result after apply".
+func preserveOrNull(apiValue string, currentState types.String) types.String {
+	if apiValue != "" {
+		return types.StringValue(apiValue)
+	}
+	// API returned empty. If user explicitly set this field (even to ""), keep their value.
+	if currentState.IsNull() || currentState.IsUnknown() {
+		return types.StringNull()
+	}
+	return currentState // preserve user's "" or previous value
 }
 
 // yamlQuote returns a YAML-safe representation of a string value.

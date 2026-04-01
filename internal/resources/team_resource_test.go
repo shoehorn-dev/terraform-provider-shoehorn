@@ -502,14 +502,14 @@ func TestMapTeamToState_EmptyOptionalFields(t *testing.T) {
 	}
 }
 
-func TestMapTeamToState_ClearsOptionalFields(t *testing.T) {
-	// Pre-populate state with values
+func TestMapTeamToState_PreservesUserSetValues(t *testing.T) {
+	// Pre-populate state with user-set values
 	state := &TeamResourceModel{
 		DisplayName: types.StringValue("Old Display Name"),
 		Description: types.StringValue("Old Description"),
 	}
 
-	// API returns team with empty optional fields (user cleared them)
+	// API returns team with empty optional fields
 	team := &client.Team{
 		ID:   "team-123",
 		Name: "Platform",
@@ -518,11 +518,35 @@ func TestMapTeamToState_ClearsOptionalFields(t *testing.T) {
 
 	mapTeamToState(team, state)
 
-	// Optional fields should be cleared to null when API returns empty
+	// Optional fields should be preserved when API returns empty (user may have set "")
+	if state.Description.ValueString() != "Old Description" {
+		t.Errorf("Description should be preserved, got %q", state.Description.ValueString())
+	}
+	if state.DisplayName.ValueString() != "Old Display Name" {
+		t.Errorf("DisplayName should be preserved, got %q", state.DisplayName.ValueString())
+	}
+}
+
+func TestMapTeamToState_ClearsNullFields(t *testing.T) {
+	// State with null (user never set these)
+	state := &TeamResourceModel{
+		DisplayName: types.StringNull(),
+		Description: types.StringNull(),
+	}
+
+	team := &client.Team{
+		ID:   "team-123",
+		Name: "Platform",
+		Slug: "platform",
+	}
+
+	mapTeamToState(team, state)
+
+	// Should remain null when API also returns empty
 	if !state.Description.IsNull() {
-		t.Errorf("Description should be null when API returns empty, got %q", state.Description.ValueString())
+		t.Errorf("Description should be null, got %q", state.Description.ValueString())
 	}
 	if !state.DisplayName.IsNull() {
-		t.Errorf("DisplayName should be null when API returns empty, got %q", state.DisplayName.ValueString())
+		t.Errorf("DisplayName should be null, got %q", state.DisplayName.ValueString())
 	}
 }
