@@ -156,12 +156,8 @@ func (r *K8sAgentResource) Create(ctx context.Context, req resource.CreateReques
 	plan.TokenPrefix = types.StringValue(regResp.TokenPrefix)
 	plan.Status = types.StringValue("active")
 
-	if regResp.ExpiresAt != "" {
-		plan.ExpiresAt = types.StringValue(regResp.ExpiresAt)
-	}
-	if regResp.CreatedAt != "" {
-		plan.CreatedAt = types.StringValue(regResp.CreatedAt)
-	}
+	plan.ExpiresAt = stringValueOrNull(regResp.ExpiresAt)
+	plan.CreatedAt = stringValueOrNull(regResp.CreatedAt)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }

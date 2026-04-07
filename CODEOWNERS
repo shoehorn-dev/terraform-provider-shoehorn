@@ -1,0 +1,21 @@
+# CODEOWNERS for shoehorn-dev/terraform-provider-shoehorn
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @shoehorn-dev/maintainers
+
+# CI/CD workflows - require review for all changes
+.github/** @shoehorn-dev/maintainers
+
+# Release and build configuration
+.goreleaser.yml @shoehorn-dev/maintainers
+.goreleaser.yaml @shoehorn-dev/maintainers
+Makefile @shoehorn-dev/maintainers
+Dockerfile* @shoehorn-dev/maintainers
+
+# Dependency management
+go.mod @shoehorn-dev/maintainers
+go.sum @shoehorn-dev/maintainers
+
+# Terraform registry metadata
+terraform-registry-manifest.json @shoehorn-dev/maintainers

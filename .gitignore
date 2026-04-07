@@ -1,11 +1,13 @@
 # Binaries
 terraform-provider-shoehorn
 terraform-provider-shoehorn.exe
+terraform-provider-shoehorn.exe~
 *.exe
 
 # Terraform
 *.tfstate
 *.tfstate.backup
+*.tfstate.*.backup
 .terraform/
 .terraform.lock.hcl
 
