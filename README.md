@@ -94,6 +94,23 @@ provider "shoehorn" {
 }
 ```
 
+### Configuring the provider when no resources are managed
+
+The provider validates `host` and `api_key` at init time, before any resource
+operations. If you consume `terraform-shoehorn-modules/modules/kubernetes`
+with `deploy_agent = false`, no `shoehorn_*` resources will be created — but
+Terraform still requires the provider block to be valid because the module
+declares an agent resource (gated `count = 0`).
+
+Pass stub values:
+
+```hcl
+provider "shoehorn" {
+  host    = "https://${var.domain}"
+  api_key = var.deploy_agent ? var.shoehorn_api_key : "stub-not-used"
+}
+```
+
 ## Quick Start
 
 ```hcl

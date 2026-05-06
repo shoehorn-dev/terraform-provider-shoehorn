@@ -42,3 +42,20 @@ variable "shoehorn_api_key" {
 - `api_key` (String, Sensitive) The Shoehorn API key for authentication. Can also be set with the SHOEHORN_API_KEY environment variable.
 - `host` (String) The Shoehorn API host URL. Can also be set with the SHOEHORN_HOST environment variable.
 - `timeout` (Number) HTTP request timeout in seconds. Defaults to 30.
+
+## Provider config required even when no resources are managed
+
+The provider validates `host` and `api_key` at init time, before any resource
+operations. Consumers using `terraform-shoehorn-modules/modules/kubernetes`
+with `deploy_agent = false` won't create any `shoehorn_*` resources, but
+Terraform still requires a valid provider block because the module declares
+the agent resource (gated `count = 0`).
+
+Pass stubs in that case:
+
+```terraform
+provider "shoehorn" {
+  host    = "https://${var.domain}"
+  api_key = var.deploy_agent ? var.shoehorn_api_key : "stub-not-used"
+}
+```
