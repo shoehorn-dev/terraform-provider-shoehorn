@@ -10,7 +10,7 @@ description: |-
 
 Manages a Shoehorn group role mapping. Maps an IdP group to a Cerbos role so all members of the group inherit that role.
 
-This resource is immutable — changing any attribute forces replacement of the mapping.
+This resource is immutable. Changing any attribute forces replacement of the mapping.
 
 ## Example Usage
 
