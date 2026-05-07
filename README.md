@@ -98,7 +98,7 @@ provider "shoehorn" {
 
 The provider validates `host` and `api_key` at init time, before any resource
 operations. If you consume `terraform-shoehorn-modules/modules/kubernetes`
-with `deploy_agent = false`, no `shoehorn_*` resources will be created — but
+with `deploy_agent = false`, no `shoehorn_*` resources will be created.
 Terraform still requires the provider block to be valid because the module
 declares an agent resource (gated `count = 0`).
 
