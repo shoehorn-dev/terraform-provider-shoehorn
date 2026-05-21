@@ -15,9 +15,26 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
+
+// emptySubscriptionState builds a tfsdk.State backed by the resource schema and
+// initialized to a null object, so ImportState has somewhere to write the
+// parsed import ID. The framework hands a similarly initialized state to
+// ImportState at runtime.
+func emptySubscriptionState(t *testing.T) tfsdk.State {
+	t.Helper()
+	r := NewNotificationSubscriptionResource()
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
+	return tfsdk.State{
+		Schema: schemaResp.Schema,
+		Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(context.Background()), nil),
+	}
+}
 
 func TestNotificationSubscriptionResource_Metadata(t *testing.T) {
 	r := NewNotificationSubscriptionResource()
@@ -359,6 +376,49 @@ func TestAccNotificationSubscriptionResource(t *testing.T) {
 			`{"mode":"webhook","url_secret":{"mode":"ref","value":"secret://slack-webhook"}}`),
 	}); err != nil {
 		t.Fatalf("acc UPDATE failed: %v", err)
+	}
+
+	// IMPORT: the import ID carries scope/scope_id/id so Read can list within
+	// the scope. ImportState parses it into state, then a list-and-find pass
+	// stands in for ImportStateVerify against the live row.
+	r := NewNotificationSubscriptionResource().(*NotificationSubscriptionResource)
+	importResp := &resource.ImportStateResponse{
+		State: emptySubscriptionState(t),
+	}
+	r.ImportState(ctx, resource.ImportStateRequest{
+		ID: fmt.Sprintf("team/%s/%s", scopeID, sub.ID),
+	}, importResp)
+	if importResp.Diagnostics.HasError() {
+		t.Fatalf("acc IMPORT failed: %v", importResp.Diagnostics)
+	}
+
+	var imported NotificationSubscriptionResourceModel
+	if diags := importResp.State.Get(ctx, &imported); diags.HasError() {
+		t.Fatalf("acc IMPORT: reading imported state: %v", diags)
+	}
+	if imported.Scope.ValueString() != "team" ||
+		imported.ScopeID.ValueString() != scopeID ||
+		imported.ID.ValueString() != sub.ID {
+		t.Fatalf("acc IMPORT: state = scope %q scope_id %q id %q, want team %q %q",
+			imported.Scope.ValueString(), imported.ScopeID.ValueString(),
+			imported.ID.ValueString(), scopeID, sub.ID)
+	}
+
+	// ImportStateVerify: the imported id must resolve to a real subscription.
+	imSubs, err := c.ListNotificationSubscriptions(ctx,
+		imported.Scope.ValueString(), imported.ScopeID.ValueString())
+	if err != nil {
+		t.Fatalf("acc IMPORT verify: list failed: %v", err)
+	}
+	var verified bool
+	for _, s := range imSubs {
+		if s.ID == imported.ID.ValueString() {
+			verified = true
+		}
+	}
+	if !verified {
+		t.Fatalf("acc IMPORT verify: imported id %s not found in scope",
+			imported.ID.ValueString())
 	}
 
 	// DELETE

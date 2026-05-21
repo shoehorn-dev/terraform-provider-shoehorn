@@ -164,6 +164,9 @@ func (r *NotificationSubscriptionResource) Schema(_ context.Context, _ resource.
 			"created_at": schema.StringAttribute{
 				Description: "The creation timestamp.",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"updated_at": schema.StringAttribute{
 				Description: "The last update timestamp.",
@@ -176,7 +179,7 @@ func (r *NotificationSubscriptionResource) Schema(_ context.Context, _ resource.
 				Attributes: map[string]schema.Attribute{
 					"mode": schema.StringAttribute{
 						Description: "Slack delivery mode: `webhook` or `bot`.",
-						Optional:    true,
+						Required:    true,
 						Validators: []validator.String{
 							stringvalidator.OneOf("webhook", "bot"),
 						},
@@ -206,11 +209,11 @@ func (r *NotificationSubscriptionResource) Schema(_ context.Context, _ resource.
 				Attributes: map[string]schema.Attribute{
 					"url": schema.StringAttribute{
 						Description: "The webhook URL to POST events to.",
-						Optional:    true,
+						Required:    true,
 					},
 					"signing_secret": schema.StringAttribute{
 						Description: "Reference to the request-signing secret (`secret://NAME` or `env://VAR`).",
-						Optional:    true,
+						Required:    true,
 						Validators: []validator.String{
 							secretRefValidator{},
 						},
@@ -442,7 +445,7 @@ func buildSubscriptionRequest(ctx context.Context, plan *NotificationSubscriptio
 
 // buildChannelConfig builds the channel_config JSON from the nested block that
 // matches channel_type. Each *_secret ref is wrapped as {"mode":"ref","value":"<ref>"}.
-func buildChannelConfig(_ context.Context, plan *NotificationSubscriptionResourceModel) ([]byte, diag.Diagnostics) {
+func buildChannelConfig(ctx context.Context, plan *NotificationSubscriptionResourceModel) ([]byte, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	channelType := plan.ChannelType.ValueString()
 
@@ -492,7 +495,7 @@ func buildChannelConfig(_ context.Context, plan *NotificationSubscriptionResourc
 		cfg := map[string]interface{}{}
 		if !plan.Email.Recipients.IsNull() && !plan.Email.Recipients.IsUnknown() {
 			var recipients []string
-			diags.Append(plan.Email.Recipients.ElementsAs(context.Background(), &recipients, false)...)
+			diags.Append(plan.Email.Recipients.ElementsAs(ctx, &recipients, false)...)
 			cfg["recipients"] = recipients
 		}
 		return marshalChannelConfig(cfg, diags)
@@ -545,8 +548,8 @@ func mapSubscriptionToState(ctx context.Context, sub *client.NotificationSubscri
 	}
 	state.EventTypes = setVal
 
-	state.EntityFilter = rawJSONToState(sub.EntityFilter, state.EntityFilter)
-	state.CadenceConfig = rawJSONToState(sub.CadenceConfig, state.CadenceConfig)
+	state.EntityFilter = rawJSONToState(sub.EntityFilter)
+	state.CadenceConfig = rawJSONToState(sub.CadenceConfig)
 
 	diags.Append(mapChannelConfigToState(ctx, sub, state)...)
 	return diags
@@ -631,14 +634,12 @@ func rawSecretField(cfg map[string]json.RawMessage, key string) types.String {
 	return types.StringValue(envelope.Value)
 }
 
-// rawJSONToState maps a raw JSON message to a string state attribute, preserving
-// the prior state value when the API omits the field.
-func rawJSONToState(raw json.RawMessage, current types.String) types.String {
+// rawJSONToState maps a raw JSON message to a string state attribute. When the
+// API omits the field, the attribute is set to null. Returning a stale prior
+// value here would produce a perpetual phantom diff.
+func rawJSONToState(raw json.RawMessage) types.String {
 	if len(raw) == 0 {
-		if current.IsUnknown() {
-			return types.StringNull()
-		}
-		return current
+		return types.StringNull()
 	}
 	return types.StringValue(string(raw))
 }

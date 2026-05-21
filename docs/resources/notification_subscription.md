@@ -90,10 +90,13 @@ Optional:
 <a id="nestedblock--slack"></a>
 ### Nested Schema for `slack`
 
+Required:
+
+- `mode` (String) Slack delivery mode: `webhook` or `bot`.
+
 Optional:
 
 - `channel` (String) Slack channel name. Required for `bot` mode.
-- `mode` (String) Slack delivery mode: `webhook` or `bot`.
 - `token_secret` (String) Reference to the bot token secret (`secret://NAME` or `env://VAR`). Required for `bot` mode.
 - `url_secret` (String) Reference to the incoming webhook URL secret (`secret://NAME` or `env://VAR`). Required for `webhook` mode.
 
@@ -101,11 +104,14 @@ Optional:
 <a id="nestedblock--webhook"></a>
 ### Nested Schema for `webhook`
 
+Required:
+
+- `signing_secret` (String) Reference to the request-signing secret (`secret://NAME` or `env://VAR`).
+- `url` (String) The webhook URL to POST events to.
+
 Optional:
 
 - `content_type` (String) The request content type. Defaults to `application/json`.
-- `signing_secret` (String) Reference to the request-signing secret (`secret://NAME` or `env://VAR`).
-- `url` (String) The webhook URL to POST events to.
 
 ## Import
 
