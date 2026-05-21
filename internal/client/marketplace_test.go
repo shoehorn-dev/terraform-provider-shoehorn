@@ -95,8 +95,8 @@ func TestListMarketplaceInstallations_Success(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"installations": []map[string]interface{}{
-				{"id": "inst-001", "item_slug": "slack-notifier", "item_kind": "addon", "item_version": "1.2.0", "enabled": true},
-				{"id": "inst-002", "item_slug": "dashboard-widget", "item_kind": "widget", "item_version": "2.0.1", "enabled": false},
+				{"id": "inst-001", "itemSlug": "slack-notifier", "itemKind": "addon", "itemVersion": "1.2.0", "enabled": true},
+				{"id": "inst-002", "itemSlug": "dashboard-widget", "itemKind": "widget", "itemVersion": "2.0.1", "enabled": false},
 			},
 		})
 	}))
@@ -131,15 +131,13 @@ func TestGetMarketplaceInstallation_Success(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"installation": map[string]interface{}{
-				"id": "inst-001", "item_slug": "slack-notifier", "item_kind": "addon",
-				"item_version": "1.2.0", "enabled": true,
-				"config":       map[string]interface{}{"webhook_url": "https://hooks.slack.com/xxx"},
-				"sync_status":  "synced",
-				"installed_by": "user@example.com",
-				"created_at":   "2025-06-01T10:00:00Z",
-				"updated_at":   "2025-06-01T12:00:00Z",
-			},
+			"id": "inst-001", "itemSlug": "slack-notifier", "itemKind": "addon",
+			"itemVersion": "1.2.0", "enabled": true,
+			"config":      map[string]interface{}{"webhook_url": "https://hooks.slack.com/xxx"},
+			"syncStatus":  "synced",
+			"installedBy": "user@example.com",
+			"createdAt":   "2025-06-01T10:00:00Z",
+			"updatedAt":   "2025-06-01T12:00:00Z",
 		})
 	}))
 	defer server.Close()
@@ -191,11 +189,9 @@ func TestInstallMarketplaceItem_Success(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"installation": map[string]interface{}{
-				"id": "inst-001", "item_slug": "slack-notifier", "item_kind": "addon",
-				"item_version": "1.2.0", "enabled": true,
-				"created_at": "2025-06-01T10:00:00Z",
-			},
+			"id": "inst-001", "itemSlug": "slack-notifier", "itemKind": "addon",
+			"itemVersion": "1.2.0", "enabled": true,
+			"createdAt": "2025-06-01T10:00:00Z",
 		})
 	}))
 	defer server.Close()
@@ -288,12 +284,10 @@ func TestUpdateMarketplaceItemConfig_Success(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"installation": map[string]interface{}{
-				"id": "inst-001", "item_slug": "slack-notifier", "item_kind": "addon",
-				"item_version": "1.2.0", "enabled": true,
-				"config":     map[string]interface{}{"webhook_url": "https://hooks.slack.com/new"},
-				"updated_at": "2025-06-01T14:00:00Z",
-			},
+			"id": "inst-001", "itemSlug": "slack-notifier", "itemKind": "addon",
+			"itemVersion": "1.2.0", "enabled": true,
+			"config":    map[string]interface{}{"webhook_url": "https://hooks.slack.com/new"},
+			"updatedAt": "2025-06-01T14:00:00Z",
 		})
 	}))
 	defer server.Close()
@@ -383,21 +377,21 @@ func TestMarketplace_Lifecycle(t *testing.T) {
 
 			slug := req["slug"].(string)
 			inst := map[string]interface{}{
-				"id": "inst-001", "item_slug": slug, "item_kind": "addon",
-				"item_version": "1.0.0", "enabled": true,
-				"config":     map[string]interface{}{},
-				"created_at": "2025-06-01T10:00:00Z",
+				"id": "inst-001", "itemSlug": slug, "itemKind": "addon",
+				"itemVersion": "1.0.0", "enabled": true,
+				"config":    map[string]interface{}{},
+				"createdAt": "2025-06-01T10:00:00Z",
 			}
 			installations[slug] = inst
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{"installation": inst})
+			json.NewEncoder(w).Encode(inst)
 
 		// Get installed item
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/marketplace/installed/test-addon":
 			if inst, ok := installations["test-addon"]; ok {
 				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(map[string]interface{}{"installation": inst})
+				json.NewEncoder(w).Encode(inst)
 			} else {
 				w.WriteHeader(http.StatusNotFound)
 				json.NewEncoder(w).Encode(map[string]interface{}{"code": "NOT_FOUND", "message": "not found"})
@@ -427,10 +421,10 @@ func TestMarketplace_Lifecycle(t *testing.T) {
 
 			if inst, ok := installations["test-addon"]; ok {
 				inst["config"] = req["config"]
-				inst["updated_at"] = "2025-06-01T12:00:00Z"
+				inst["updatedAt"] = "2025-06-01T12:00:00Z"
 				installations["test-addon"] = inst
 				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(map[string]interface{}{"installation": inst})
+				json.NewEncoder(w).Encode(inst)
 			} else {
 				w.WriteHeader(http.StatusNotFound)
 			}
