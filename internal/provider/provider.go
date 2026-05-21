@@ -145,6 +145,7 @@ func (p *ShoehornProvider) Resources(_ context.Context) []func() resource.Resour
 		resources.NewForgeApprovalPolicyResource,
 		resources.NewMarketplaceInstallationResource,
 		resources.NewGovernanceActionResource,
+		resources.NewNotificationSubscriptionResource,
 	}
 }
 

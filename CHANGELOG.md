@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`shoehorn_notification_subscription`** resource: Manages a notification subscription that routes platform events to a channel for a team or user
+  - Attributes: `scope`, `scope_id`, `name`, `enabled`, `event_types`, `min_severity`, `entity_filter`, `channel_type`, `cadence`, `cadence_config`
+  - Typed nested blocks `slack`, `webhook`, and `email` for channel config; `inapp` needs no block
+  - Channel secrets accept a `secret://NAME` or `env://VAR` reference only. A literal secret is rejected at plan time so no plaintext lands in Terraform state
+  - `scope`, `scope_id`, and `channel_type` force replacement
+  - Import via `terraform import` using the form `scope/scope_id/id`
+- **Client APIs**: `CreateNotificationSubscription`, `ListNotificationSubscriptions`, `UpdateNotificationSubscription`, `DeleteNotificationSubscription`
+
 ## [0.2.0] - 2026-03-22
 
 ### Added
