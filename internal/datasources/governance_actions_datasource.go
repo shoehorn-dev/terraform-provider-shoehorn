@@ -20,13 +20,15 @@ type GovernanceActionsDataSource struct {
 
 // GovernanceActionsDataSourceModel describes the data source data model.
 type GovernanceActionsDataSourceModel struct {
-	Status     types.String               `tfsdk:"status"`
-	Priority   types.String               `tfsdk:"priority"`
-	EntityID   types.String               `tfsdk:"entity_id"`
-	SourceType types.String               `tfsdk:"source_type"`
-	Overdue    types.Bool                 `tfsdk:"overdue"`
-	Total      types.Int64                `tfsdk:"total"`
-	Actions    []GovernanceActionModel    `tfsdk:"actions"`
+	Status     types.String            `tfsdk:"status"`
+	Priority   types.String            `tfsdk:"priority"`
+	EntityID   types.String            `tfsdk:"entity_id"`
+	SourceType types.String            `tfsdk:"source_type"`
+	AssignedTo types.String            `tfsdk:"assigned_to"`
+	Overdue    types.Bool              `tfsdk:"overdue"`
+	Closed     types.Bool              `tfsdk:"closed"`
+	Total      types.Int64             `tfsdk:"total"`
+	Actions    []GovernanceActionModel `tfsdk:"actions"`
 }
 
 // GovernanceActionModel describes a single governance action in the list.
@@ -77,8 +79,16 @@ func (d *GovernanceActionsDataSource) Schema(_ context.Context, _ datasource.Sch
 				Description: "Filter actions by source type (scorecard, security, policy).",
 				Optional:    true,
 			},
+			"assigned_to": schema.StringAttribute{
+				Description: "Filter actions by assignee (user or team).",
+				Optional:    true,
+			},
 			"overdue": schema.BoolAttribute{
 				Description: "Filter to only overdue actions.",
+				Optional:    true,
+			},
+			"closed": schema.BoolAttribute{
+				Description: "Filter to only closed actions (resolved, dismissed, wont_fix).",
 				Optional:    true,
 			},
 			"total": schema.Int64Attribute{
@@ -186,7 +196,8 @@ func (d *GovernanceActionsDataSource) Read(ctx context.Context, req datasource.R
 	// Build filters from optional attributes
 	var filters *client.GovernanceActionFilters
 	hasFilters := !config.Status.IsNull() || !config.Priority.IsNull() ||
-		!config.EntityID.IsNull() || !config.SourceType.IsNull() || !config.Overdue.IsNull()
+		!config.EntityID.IsNull() || !config.SourceType.IsNull() ||
+		!config.AssignedTo.IsNull() || !config.Overdue.IsNull() || !config.Closed.IsNull()
 
 	if hasFilters {
 		filters = &client.GovernanceActionFilters{}
@@ -202,9 +213,16 @@ func (d *GovernanceActionsDataSource) Read(ctx context.Context, req datasource.R
 		if !config.SourceType.IsNull() {
 			filters.SourceType = config.SourceType.ValueString()
 		}
+		if !config.AssignedTo.IsNull() {
+			filters.AssignedTo = config.AssignedTo.ValueString()
+		}
 		if !config.Overdue.IsNull() {
 			v := config.Overdue.ValueBool()
 			filters.Overdue = &v
+		}
+		if !config.Closed.IsNull() {
+			v := config.Closed.ValueBool()
+			filters.Closed = &v
 		}
 	}
 
@@ -219,7 +237,9 @@ func (d *GovernanceActionsDataSource) Read(ctx context.Context, req datasource.R
 		Priority:   config.Priority,
 		EntityID:   config.EntityID,
 		SourceType: config.SourceType,
+		AssignedTo: config.AssignedTo,
 		Overdue:    config.Overdue,
+		Closed:     config.Closed,
 		Total:      types.Int64Value(int64(total)),
 	}
 

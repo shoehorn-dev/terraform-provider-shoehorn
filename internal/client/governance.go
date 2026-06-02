@@ -14,9 +14,9 @@ type GovernanceAction struct {
 	EntityName     string `json:"entity_name"`
 	Title          string `json:"title"`
 	Description    string `json:"description"`
-	Priority       string `json:"priority"`        // critical, high, medium, low
-	Status         string `json:"status"`           // open, in_progress, resolved, dismissed, wont_fix
-	SourceType     string `json:"source_type"`      // scorecard, security, policy
+	Priority       string `json:"priority"`    // critical, high, medium, low
+	Status         string `json:"status"`      // open, in_progress, resolved, dismissed, wont_fix
+	SourceType     string `json:"source_type"` // scorecard, security, policy
 	SourceID       string `json:"source_id"`
 	AssignedTo     string `json:"assigned_to,omitempty"`
 	DueDate        string `json:"due_date,omitempty"`
@@ -56,7 +56,9 @@ type GovernanceActionFilters struct {
 	Status     string
 	Priority   string
 	SourceType string
+	AssignedTo string
 	Overdue    *bool
+	Closed     *bool
 }
 
 // governanceActionListResponse wraps the list governance actions API response.
@@ -90,12 +92,16 @@ func (c *Client) ListGovernanceActions(ctx context.Context, filters *GovernanceA
 		if filters.SourceType != "" {
 			params.Set("source_type", filters.SourceType)
 		}
-		if filters.Overdue != nil {
-			if *filters.Overdue {
-				params.Set("overdue", "true")
-			} else {
-				params.Set("overdue", "false")
-			}
+		if filters.AssignedTo != "" {
+			params.Set("assigned_to", filters.AssignedTo)
+		}
+		// The platform reads these as `?flag=true`; absence means "no filter". Only
+		// send when true so we never emit a no-op `=false` the server ignores.
+		if filters.Overdue != nil && *filters.Overdue {
+			params.Set("overdue", "true")
+		}
+		if filters.Closed != nil && *filters.Closed {
+			params.Set("closed", "true")
 		}
 		if encoded := params.Encode(); encoded != "" {
 			path += "?" + encoded

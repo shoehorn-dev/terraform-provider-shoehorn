@@ -88,7 +88,7 @@ func (r *EntityResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Computed:    true,
 			},
 			"tier": schema.StringAttribute{
-				Description: "The tier of the entity (e.g., tier1, tier2, tier3).",
+				Description: "Service criticality: critical, high, medium, or low. Legacy metal aliases (platinum/gold/silver/bronze) are also accepted.",
 				Optional:    true,
 			},
 			"owner": schema.StringAttribute{

@@ -72,7 +72,7 @@ func (d *EntitiesDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 							Computed:    true,
 						},
 						"tier": schema.StringAttribute{
-							Description: "The entity tier level.",
+							Description: "Service criticality: critical, high, medium, or low. Legacy metal aliases (platinum/gold/silver/bronze) are also accepted.",
 							Computed:    true,
 						},
 					},
