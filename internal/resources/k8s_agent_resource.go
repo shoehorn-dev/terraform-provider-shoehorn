@@ -223,7 +223,12 @@ func (r *K8sAgentResource) Delete(ctx context.Context, req resource.DeleteReques
 			fmt.Sprintf("Could not revoke K8s agent %s (may already be revoked): %s. Proceeding with deletion.", clusterID, err))
 	}
 
-	if err := r.client.DeleteK8sAgent(ctx, clusterID); err != nil {
+	// A 404 means the agent is already gone, which is the goal of a destroy. Shoehorn
+	// v0.7.0 made this endpoint tenant-scoped, so it resolves ownership first and answers
+	// 404 where it previously deleted unconditionally and returned 204. Treating that as a
+	// failure breaks `terraform destroy` run twice, or run after the cluster was removed
+	// elsewhere. Every sibling resource already tolerates it.
+	if err := r.client.DeleteK8sAgent(ctx, clusterID); err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Error Deleting K8s Agent", fmt.Sprintf("Could not delete K8s agent %s: %s", clusterID, err))
 		return
 	}
