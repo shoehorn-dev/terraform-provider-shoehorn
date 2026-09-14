@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`shoehorn_k8s_agent`**: `terraform destroy` no longer fails when the agent is already gone. Shoehorn 0.7.0 made the agent delete tenant-scoped, so it answers 404 where it previously deleted unconditionally. Destroying twice, or destroying after the cluster was removed elsewhere, errored out and left the resource stuck in state. A 404 is now treated as success, matching every other resource in the provider. Any other failure still surfaces as an error.
+
 ### Added
 
 - **`shoehorn_notification_subscription`** resource: Manages a notification subscription that routes platform events to a channel for a team or user
