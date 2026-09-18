@@ -29,13 +29,13 @@ type ForgeApprovalPolicyResource struct {
 
 // ForgeApprovalPolicyResourceModel describes the resource data model.
 type ForgeApprovalPolicyResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Enabled     types.Bool   `tfsdk:"enabled"`
-	ApprovalChain       types.List   `tfsdk:"steps"`
-	CreatedAt   types.String `tfsdk:"created_at"`
-	UpdatedAt   types.String `tfsdk:"updated_at"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Description   types.String `tfsdk:"description"`
+	Enabled       types.Bool   `tfsdk:"enabled"`
+	ApprovalChain types.List   `tfsdk:"steps"`
+	CreatedAt     types.String `tfsdk:"created_at"`
+	UpdatedAt     types.String `tfsdk:"updated_at"`
 }
 
 // ApprovalStepModel describes a single step in an approval policy.
@@ -67,7 +67,7 @@ func (r *ForgeApprovalPolicyResource) Metadata(_ context.Context, req resource.M
 
 func (r *ForgeApprovalPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Shoehorn Forge approval policy.",
+		Description: "Manages a Shoehorn Forge approval policy. Needs an admin API key with the `forge:admin` scope; personal access tokens can't hold it.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "The unique identifier of the approval policy.",
@@ -164,9 +164,9 @@ func (r *ForgeApprovalPolicyResource) Create(ctx context.Context, req resource.C
 	}
 
 	createReq := client.CreateApprovalPolicyRequest{
-		Name:    plan.Name.ValueString(),
-		Enabled: plan.Enabled.ValueBool(),
-		ApprovalChain:   steps,
+		Name:          plan.Name.ValueString(),
+		Enabled:       plan.Enabled.ValueBool(),
+		ApprovalChain: steps,
 	}
 	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
 		createReq.Description = plan.Description.ValueString()
@@ -233,9 +233,9 @@ func (r *ForgeApprovalPolicyResource) Update(ctx context.Context, req resource.U
 
 	enabled := plan.Enabled.ValueBool()
 	updateReq := client.UpdateApprovalPolicyRequest{
-		Name:    plan.Name.ValueString(),
-		Enabled: &enabled,
-		ApprovalChain:   steps,
+		Name:          plan.Name.ValueString(),
+		Enabled:       &enabled,
+		ApprovalChain: steps,
 	}
 	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
 		updateReq.Description = plan.Description.ValueString()

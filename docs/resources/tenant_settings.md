@@ -63,8 +63,10 @@ resource "shoehorn_tenant_settings" "no_announcement" {
 - `announcement` (Attributes) Announcement bar configuration. (see [below for nested schema](#nestedatt--announcement))
 - `company_name` (String) Company name.
 - `default_theme` (String) Default theme for users. Valid values: light, dark, system.
-- `favicon_url` (String) URL to the favicon.
-- `logo_url` (String) URL to the company logo.
+- `favicon_url` (String) URL to the favicon (must be http:// or https://).
+- `forge` (Attributes) Forge configuration for scaffolding and templates. (see [below for nested schema](#nestedatt--forge))
+- `hidden_pages` (List of String) List of page slugs to hide from non-admin users (e.g., forge, insights).
+- `logo_url` (String) URL to the company logo (must be http:// or https://).
 - `platform_description` (String) Description of the platform.
 - `platform_name` (String) Name of the platform displayed in the UI.
 - `primary_color` (String) Primary brand color (hex, e.g., #3b82f6). Used for active states and primary buttons.
@@ -83,7 +85,7 @@ Optional:
 
 - `enabled` (Boolean) Whether announcement bar is enabled.
 - `link_text` (String) Optional call-to-action link text.
-- `link_url` (String) Optional call-to-action link URL.
+- `link_url` (String) Optional call-to-action link URL (must be http:// or https://).
 - `message` (String) Announcement message text.
 - `pinned` (Boolean) If true, users cannot dismiss the announcement.
 - `type` (String) Announcement type. Valid values: info, warning, error, success.
@@ -91,3 +93,12 @@ Optional:
 Read-Only:
 
 - `updated_at` (String) Announcement last update timestamp (used for dismiss tracking).
+
+
+<a id="nestedatt--forge"></a>
+### Nested Schema for `forge`
+
+Optional:
+
+- `allowed_orgs` (List of String) List of GitHub organizations allowed for Forge templates.
+- `default_org` (String) Default GitHub organization for Forge templates.

@@ -3,12 +3,12 @@
 page_title: "shoehorn_api_key Resource - terraform-provider-shoehorn"
 subcategory: ""
 description: |-
-  Manages a Shoehorn API key. The raw key is only available on creation and stored in state. Deleting this resource revokes the key.
+  Manages a Shoehorn API key. The raw key is only available on creation and stored in state. Deleting this resource revokes the key. shoehorn_forge_approval_policy needs the forge:admin scope.
 ---
 
 # shoehorn_api_key (Resource)
 
-Manages a Shoehorn API key. The raw key is only available on creation and stored in state. Deleting this resource revokes the key.
+Manages a Shoehorn API key. The raw key is only available on creation and stored in state. Deleting this resource revokes the key. `shoehorn_forge_approval_policy` needs the `forge:admin` scope.
 
 ## Example Usage
 
