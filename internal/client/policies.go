@@ -17,8 +17,7 @@ type PlatformPolicy struct {
 	Enforcement   string `json:"enforcement,omitempty"`
 	AffectedUsers int    `json:"affected_users,omitempty"`
 	System        bool   `json:"system,omitempty"`
-	// Configurable is true for a policy a tenant can turn on or off. The others
-	// are always on and Shoehorn refuses to change them.
+	// Configurable is true for a policy a tenant can turn on or off.
 	Configurable bool   `json:"configurable,omitempty"`
 	CreatedAt    string `json:"created_at,omitempty"`
 	UpdatedAt    string `json:"updated_at,omitempty"`

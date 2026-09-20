@@ -21,8 +21,7 @@ func validateKey(t *testing.T, value types.String) validator.StringResponse {
 	return resp
 }
 
-// details joins every diagnostic's summary and detail so a test can look for the
-// phrase that has to reach the person running terraform.
+// details joins each diagnostic's summary and detail for phrase assertions.
 func details(resp validator.StringResponse) string {
 	var b strings.Builder
 	for _, d := range resp.Diagnostics {
@@ -100,8 +99,7 @@ func TestManageablePolicyKey_RefusesUnknownPolicyAndListsWhatWorks(t *testing.T)
 	}
 }
 
-// A key that comes from a variable is unknown at validate time. Refusing it there
-// would fail plans that are fine.
+// A key from a variable is unknown at validate time; refusing it would break valid plans.
 func TestManageablePolicyKey_PassesNullAndUnknownThrough(t *testing.T) {
 	for name, value := range map[string]types.String{
 		"null":    types.StringNull(),

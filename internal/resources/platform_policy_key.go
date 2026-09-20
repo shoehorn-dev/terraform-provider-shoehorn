@@ -9,15 +9,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
-// The platform's policy registry, mirrored so a wrong key fails at plan time
-// instead of at apply. Source of truth: internal/platformpolicy in the Shoehorn
-// platform. Keep the three lists in step with it.
+// Mirrors internal/platformpolicy so a wrong key fails at plan time; keep in step.
 var (
 	// configurablePolicyKeys are the settings a tenant can change.
 	configurablePolicyKeys = []string{"governance-auto-actions", "api-key-expiration"}
 
-	// alwaysOnPolicyKeys are protections Shoehorn keeps on for every tenant. The
-	// API refuses an update to any of them.
+	// alwaysOnPolicyKeys are protections Shoehorn keeps on for every tenant.
 	alwaysOnPolicyKeys = []string{
 		"tenant-isolation", "rbac-enforcement", "audit-logging", "data-retention",
 		"change-tracking", "repo-auto-sync", "github-rate-limit", "retry-failed-repos",
@@ -30,8 +27,7 @@ var (
 // removedPolicyRelease is the release that dropped removedPolicyKeys.
 const removedPolicyRelease = "0.7.0"
 
-// manageablePolicyKeyValidator refuses a policy key Terraform cannot manage, and
-// says why.
+// manageablePolicyKeyValidator refuses a policy key Terraform cannot manage.
 type manageablePolicyKeyValidator struct{}
 
 // manageablePolicyKey validates the key of a shoehorn_platform_policy.
@@ -48,8 +44,7 @@ func (v manageablePolicyKeyValidator) MarkdownDescription(ctx context.Context) s
 }
 
 func (v manageablePolicyKeyValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	// A key that comes from a variable is unknown until apply. Terraform checks it
-	// again once it has a value.
+	// A key from a variable is unknown until apply; Terraform rechecks it then.
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}

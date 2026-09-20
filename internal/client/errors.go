@@ -9,8 +9,7 @@ import (
 // ErrNotFound is returned when a requested resource does not exist.
 var ErrNotFound = errors.New("resource not found")
 
-// errorEnvelope is the shape Shoehorn returns an error in: the code and message
-// sit under "error", beside a request id and a timestamp.
+// errorEnvelope is Shoehorn's error shape: code and message sit under "error".
 type errorEnvelope struct {
 	Error struct {
 		Code    string `json:"code"`
@@ -18,9 +17,7 @@ type errorEnvelope struct {
 	} `json:"error"`
 }
 
-// parseAPIError turns an error response body into an APIError. It reads
-// Shoehorn's envelope first, then a flat {"code","message"} object, and keeps the
-// raw body when it recognises neither. An empty body becomes the status text.
+// parseAPIError reads Shoehorn's envelope, then a flat {"code","message"}, then the raw body.
 func parseAPIError(statusCode int, body []byte) *APIError {
 	apiErr := &APIError{StatusCode: statusCode}
 

@@ -20,9 +20,7 @@ var (
 	_ resource.ResourceWithImportState = &PlatformPolicyResource{}
 )
 
-// PlatformPolicyResource turns one of Shoehorn's two configurable policies on or
-// off. Shoehorn defines the policies, so this resource never creates or deletes
-// one, and the key validator refuses the rest during plan.
+// PlatformPolicyResource turns one of Shoehorn's two configurable policies on or off.
 type PlatformPolicyResource struct {
 	client *client.Client
 }

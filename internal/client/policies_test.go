@@ -130,8 +130,7 @@ func TestUpdatePolicy_Success(t *testing.T) {
 	}
 }
 
-// The API says which policies a tenant can change. Without it a consumer has to
-// guess from `system`.
+// The API says which policies a tenant can change.
 func TestListPolicies_ReadsConfigurable(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

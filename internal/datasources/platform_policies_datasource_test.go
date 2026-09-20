@@ -62,8 +62,7 @@ func TestPlatformPoliciesDataSource_Configure_WrongType(t *testing.T) {
 	}
 }
 
-// Reading `configurable` is how a configuration tells the two settings it can
-// manage apart from the protections Shoehorn keeps on.
+// Reading `configurable` separates the settings from the always-on protections.
 func TestPlatformPoliciesDataSource_Schema_PoliciesCarryConfigurable(t *testing.T) {
 	d := NewPlatformPoliciesDataSource()
 	resp := &datasource.SchemaResponse{}

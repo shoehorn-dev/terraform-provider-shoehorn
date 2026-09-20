@@ -65,8 +65,7 @@ func TestPlatformPolicyResource_Schema_EnabledIsRequired(t *testing.T) {
 	}
 }
 
-// Enforcement has never changed what Shoehorn does, so a configuration no longer
-// has to carry it. One that still does keeps working.
+// Enforcement changes nothing, so a configuration no longer has to carry it.
 func TestPlatformPolicyResource_Schema_EnforcementIsOptionalComputedAndDeprecated(t *testing.T) {
 	r := NewPlatformPolicyResource()
 	resp := &resource.SchemaResponse{}
@@ -90,8 +89,7 @@ func TestPlatformPolicyResource_Schema_EnforcementIsOptionalComputedAndDeprecate
 	}
 }
 
-// The key is checked during plan, so a policy Terraform cannot manage never
-// reaches apply.
+// The key is checked during plan, so an unmanageable policy never reaches apply.
 func TestPlatformPolicyResource_Schema_KeyRefusesPoliciesTerraformCannotManage(t *testing.T) {
 	r := NewPlatformPolicyResource()
 	resp := &resource.SchemaResponse{}

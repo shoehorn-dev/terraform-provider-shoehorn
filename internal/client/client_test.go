@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -227,9 +227,7 @@ func TestClient_ErrorResponse_4xx(t *testing.T) {
 			wantCode:   "",
 			wantMsg:    "Internal Server Error",
 		},
-		// What Shoehorn actually returns: the error sits under "error", next to a
-		// request id and a timestamp. Read flat, this left the whole JSON body as
-		// the message.
+		// Shoehorn nests the error under "error".
 		{
 			name:       "400 always-on policy, Shoehorn's nested shape",
 			statusCode: http.StatusBadRequest,
