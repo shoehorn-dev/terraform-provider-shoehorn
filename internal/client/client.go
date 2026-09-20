@@ -144,21 +144,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 		}
 
 		if resp.StatusCode >= 400 {
-			apiErr := &APIError{StatusCode: resp.StatusCode}
-			if err := json.Unmarshal(respBody, apiErr); err != nil {
-				apiErr.Message = string(respBody)
-			}
-			// If standard code/message fields are empty, use the raw body
-			// (catches validation error responses with "errors" array format)
-			if apiErr.Message == "" && apiErr.Code == "" {
-				body := string(respBody)
-				if body != "" {
-					apiErr.Message = body
-				} else {
-					apiErr.Message = http.StatusText(resp.StatusCode)
-				}
-			}
-			return nil, resp.StatusCode, apiErr
+			return nil, resp.StatusCode, parseAPIError(resp.StatusCode, respBody)
 		}
 
 		return respBody, resp.StatusCode, nil

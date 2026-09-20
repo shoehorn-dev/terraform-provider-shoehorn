@@ -17,8 +17,10 @@ type PlatformPolicy struct {
 	Enforcement   string `json:"enforcement,omitempty"`
 	AffectedUsers int    `json:"affected_users,omitempty"`
 	System        bool   `json:"system,omitempty"`
-	CreatedAt     string `json:"created_at,omitempty"`
-	UpdatedAt     string `json:"updated_at,omitempty"`
+	// Configurable is true for a policy a tenant can turn on or off.
+	Configurable bool   `json:"configurable,omitempty"`
+	CreatedAt    string `json:"created_at,omitempty"`
+	UpdatedAt    string `json:"updated_at,omitempty"`
 }
 
 // UpdatePolicyRequest is the request body for updating a platform policy.

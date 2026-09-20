@@ -3,22 +3,26 @@
 page_title: "shoehorn_platform_policy Resource - terraform-provider-shoehorn"
 subcategory: ""
 description: |-
-  Manages a Shoehorn platform policy configuration. Policies are pre-seeded and cannot be created or destroyed. Use this resource to configure enabled state and enforcement level.
+  Turns a Shoehorn platform policy on or off. Shoehorn defines the policies, so this resource never creates or deletes one, and only two can be changed: governance-auto-actions and api-key-expiration. The rest are always on. Removing this resource from your configuration drops it from state and leaves the policy as it is. Use the shoehorn_platform_policies data source to read every policy.
 ---
 
 # shoehorn_platform_policy (Resource)
 
-Manages a Shoehorn platform policy configuration. Policies are pre-seeded and cannot be created or destroyed. Use this resource to configure enabled state and enforcement level.
+Turns a Shoehorn platform policy on or off. Shoehorn defines the policies, so this resource never creates or deletes one, and only two can be changed: `governance-auto-actions` and `api-key-expiration`. The rest are always on. Removing this resource from your configuration drops it from state and leaves the policy as it is. Use the `shoehorn_platform_policies` data source to read every policy.
 
 ## Example Usage
 
 ```terraform
-# Configure a platform policy (policies are pre-seeded, cannot be created or destroyed)
-# Terraform only manages the enabled/enforcement state.
-resource "shoehorn_platform_policy" "require_description" {
-  key         = "require-entity-description"
-  enabled     = true
-  enforcement = "warning"
+# Shoehorn defines its own policies. Two can be changed; the rest are always on.
+
+resource "shoehorn_platform_policy" "governance_actions" {
+  key     = "governance-auto-actions"
+  enabled = true
+}
+
+resource "shoehorn_platform_policy" "api_key_expiry" {
+  key     = "api-key-expiration"
+  enabled = true
 }
 ```
 
@@ -27,16 +31,19 @@ resource "shoehorn_platform_policy" "require_description" {
 
 ### Required
 
-- `enabled` (Boolean) Whether the policy is enabled. System policies cannot be disabled.
-- `enforcement` (String) The enforcement level (warn, block, audit).
-- `key` (String) The unique key of the policy (used to identify pre-seeded policies).
+- `enabled` (Boolean) Whether the policy is on.
+- `key` (String) The policy this resource manages: `governance-auto-actions` or `api-key-expiration`. Every other Shoehorn policy is always on and can't be managed here.
+
+### Optional
+
+- `enforcement` (String, Deprecated) Shoehorn stores this but has never acted on it. Setting it changes nothing.
 
 ### Read-Only
 
-- `category` (String) The policy category (security, governance, compliance, performance).
+- `category` (String) What the policy covers: access, governance, catalog or integration.
 - `created_at` (String) The creation timestamp.
 - `description` (String) The description of the policy.
 - `id` (String) The unique identifier of the policy.
 - `name` (String) The display name of the policy.
-- `system` (Boolean) Whether this is a system policy (cannot be disabled).
+- `system` (Boolean) Whether Shoehorn keeps this policy on for every tenant. Always false on this resource, which only manages the policies you can change.
 - `updated_at` (String) The last update timestamp.

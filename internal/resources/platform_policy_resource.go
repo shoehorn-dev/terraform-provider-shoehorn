@@ -6,11 +6,12 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -19,9 +20,7 @@ var (
 	_ resource.ResourceWithImportState = &PlatformPolicyResource{}
 )
 
-// PlatformPolicyResource defines the resource implementation.
-// Platform policies are configuration-only: they are pre-seeded by Shoehorn and
-// cannot be created or destroyed. Terraform manages their enabled/enforcement state.
+// PlatformPolicyResource turns one of Shoehorn's two configurable policies on or off.
 type PlatformPolicyResource struct {
 	client *client.Client
 }
@@ -51,7 +50,7 @@ func (r *PlatformPolicyResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *PlatformPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Shoehorn platform policy configuration. Policies are pre-seeded and cannot be created or destroyed. Use this resource to configure enabled state and enforcement level.",
+		Description: "Turns a Shoehorn platform policy on or off. Shoehorn defines the policies, so this resource never creates or deletes one, and only two can be changed: `governance-auto-actions` and `api-key-expiration`. The rest are always on. Removing this resource from your configuration drops it from state and leaves the policy as it is. Use the `shoehorn_platform_policies` data source to read every policy.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "The unique identifier of the policy.",
@@ -61,8 +60,11 @@ func (r *PlatformPolicyResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"key": schema.StringAttribute{
-				Description: "The unique key of the policy (used to identify pre-seeded policies).",
+				Description: "The policy this resource manages: `governance-auto-actions` or `api-key-expiration`. Every other Shoehorn policy is always on and can't be managed here.",
 				Required:    true,
+				Validators: []validator.String{
+					manageablePolicyKey(),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -76,19 +78,24 @@ func (r *PlatformPolicyResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed:    true,
 			},
 			"category": schema.StringAttribute{
-				Description: "The policy category (security, governance, compliance, performance).",
+				Description: "What the policy covers: access, governance, catalog or integration.",
 				Computed:    true,
 			},
 			"enabled": schema.BoolAttribute{
-				Description: "Whether the policy is enabled. System policies cannot be disabled.",
+				Description: "Whether the policy is on.",
 				Required:    true,
 			},
 			"enforcement": schema.StringAttribute{
-				Description: "The enforcement level (warn, block, audit).",
-				Required:    true,
+				Description:        "Shoehorn stores this but has never acted on it. Setting it changes nothing.",
+				DeprecationMessage: "enforcement has never changed what Shoehorn does. Drop it from your configuration.",
+				Optional:           true,
+				Computed:           true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"system": schema.BoolAttribute{
-				Description: "Whether this is a system policy (cannot be disabled).",
+				Description: "Whether Shoehorn keeps this policy on for every tenant. Always false on this resource, which only manages the policies you can change.",
 				Computed:    true,
 			},
 			"created_at": schema.StringAttribute{
