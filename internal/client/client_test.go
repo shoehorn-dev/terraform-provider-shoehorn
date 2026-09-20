@@ -227,6 +227,37 @@ func TestClient_ErrorResponse_4xx(t *testing.T) {
 			wantCode:   "",
 			wantMsg:    "Internal Server Error",
 		},
+		// What Shoehorn actually returns: the error sits under "error", next to a
+		// request id and a timestamp. Read flat, this left the whole JSON body as
+		// the message.
+		{
+			name:       "400 always-on policy, Shoehorn's nested shape",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":{"code":"POLICY_ALWAYS_ON","title":"Bad Request","message":"This protection is always on and can't be changed","status":400},"requestId":"3f1c","timestamp":"2026-09-20T09:00:00Z"}`,
+			wantCode:   "POLICY_ALWAYS_ON",
+			wantMsg:    "This protection is always on and can't be changed",
+		},
+		{
+			name:       "404 removed policy, Shoehorn's nested shape",
+			statusCode: http.StatusNotFound,
+			body:       `{"error":{"code":"NOT_FOUND","title":"Not Found","message":"Policy not found","status":404},"requestId":"3f1d","timestamp":"2026-09-20T09:00:00Z"}`,
+			wantCode:   "NOT_FOUND",
+			wantMsg:    "Policy not found",
+		},
+		{
+			name:       "403 with an empty body falls back to the status text",
+			statusCode: http.StatusForbidden,
+			body:       ``,
+			wantCode:   "",
+			wantMsg:    "Forbidden",
+		},
+		{
+			name:       "400 with an unrecognised JSON shape keeps the body",
+			statusCode: http.StatusBadRequest,
+			body:       `{"errors":["name is required"]}`,
+			wantCode:   "",
+			wantMsg:    `{"errors":["name is required"]}`,
+		},
 	}
 
 	for _, tt := range tests {

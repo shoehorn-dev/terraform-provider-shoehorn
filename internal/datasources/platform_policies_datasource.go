@@ -25,14 +25,30 @@ type PlatformPoliciesDataSourceModel struct {
 
 // PlatformPolicyModel describes a single platform policy in the list.
 type PlatformPolicyModel struct {
-	ID          types.String `tfsdk:"id"`
-	Key         types.String `tfsdk:"key"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Category    types.String `tfsdk:"category"`
-	Enabled     types.Bool   `tfsdk:"enabled"`
-	Enforcement types.String `tfsdk:"enforcement"`
-	System      types.Bool   `tfsdk:"system"`
+	ID           types.String `tfsdk:"id"`
+	Key          types.String `tfsdk:"key"`
+	Name         types.String `tfsdk:"name"`
+	Description  types.String `tfsdk:"description"`
+	Category     types.String `tfsdk:"category"`
+	Enabled      types.Bool   `tfsdk:"enabled"`
+	Enforcement  types.String `tfsdk:"enforcement"`
+	System       types.Bool   `tfsdk:"system"`
+	Configurable types.Bool   `tfsdk:"configurable"`
+}
+
+// platformPolicyModel turns one policy from the API into its Terraform shape.
+func platformPolicyModel(p client.PlatformPolicy) PlatformPolicyModel {
+	return PlatformPolicyModel{
+		ID:           types.StringValue(p.ID),
+		Key:          types.StringValue(p.Key),
+		Name:         types.StringValue(p.Name),
+		Description:  types.StringValue(p.Description),
+		Category:     types.StringValue(p.Category),
+		Enabled:      types.BoolValue(p.Enabled),
+		Enforcement:  types.StringValue(p.Enforcement),
+		System:       types.BoolValue(p.System),
+		Configurable: types.BoolValue(p.Configurable),
+	}
 }
 
 // NewPlatformPoliciesDataSource creates a new platform policies data source.
@@ -82,7 +98,11 @@ func (d *PlatformPoliciesDataSource) Schema(_ context.Context, _ datasource.Sche
 							Computed:    true,
 						},
 						"system": schema.BoolAttribute{
-							Description: "Whether this is a system policy.",
+							Description: "Whether Shoehorn keeps this policy on for every tenant.",
+							Computed:    true,
+						},
+						"configurable": schema.BoolAttribute{
+							Description: "Whether you can turn this policy on or off. The `shoehorn_platform_policy` resource manages only these.",
 							Computed:    true,
 						},
 					},
@@ -120,16 +140,7 @@ func (d *PlatformPoliciesDataSource) Read(ctx context.Context, _ datasource.Read
 
 	var state PlatformPoliciesDataSourceModel
 	for _, p := range policies {
-		state.Policies = append(state.Policies, PlatformPolicyModel{
-			ID:          types.StringValue(p.ID),
-			Key:         types.StringValue(p.Key),
-			Name:        types.StringValue(p.Name),
-			Description: types.StringValue(p.Description),
-			Category:    types.StringValue(p.Category),
-			Enabled:     types.BoolValue(p.Enabled),
-			Enforcement: types.StringValue(p.Enforcement),
-			System:      types.BoolValue(p.System),
-		})
+		state.Policies = append(state.Policies, platformPolicyModel(p))
 	}
 
 	if state.Policies == nil {

@@ -13,11 +13,16 @@ Lists all Shoehorn platform policies.
 ## Example Usage
 
 ```terraform
-# List all platform policies
 data "shoehorn_platform_policies" "all" {}
 
-output "enabled_policies" {
-  value = [for p in data.shoehorn_platform_policies.all.policies : p.name if p.enabled]
+# The policies you can turn on or off.
+output "configurable_policies" {
+  value = [for p in data.shoehorn_platform_policies.all.policies : p.key if p.configurable]
+}
+
+# The protections Shoehorn keeps on for every tenant.
+output "always_on_policies" {
+  value = [for p in data.shoehorn_platform_policies.all.policies : p.key if !p.configurable]
 }
 ```
 
@@ -34,10 +39,11 @@ output "enabled_policies" {
 Read-Only:
 
 - `category` (String) The policy category.
+- `configurable` (Boolean) Whether you can turn this policy on or off. The `shoehorn_platform_policy` resource manages only these.
 - `description` (String) The policy description.
 - `enabled` (Boolean) Whether the policy is enabled.
 - `enforcement` (String) The enforcement level (warn, block, audit).
 - `id` (String) The unique identifier of the policy.
 - `key` (String) The unique key of the policy.
 - `name` (String) The display name of the policy.
-- `system` (Boolean) Whether this is a system policy.
+- `system` (Boolean) Whether Shoehorn keeps this policy on for every tenant.

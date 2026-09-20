@@ -1,11 +1,54 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
+	"net/http"
 )
 
 // ErrNotFound is returned when a requested resource does not exist.
 var ErrNotFound = errors.New("resource not found")
+
+// errorEnvelope is the shape Shoehorn returns an error in: the code and message
+// sit under "error", beside a request id and a timestamp.
+type errorEnvelope struct {
+	Error struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// parseAPIError turns an error response body into an APIError. It reads
+// Shoehorn's envelope first, then a flat {"code","message"} object, and keeps the
+// raw body when it recognises neither. An empty body becomes the status text.
+func parseAPIError(statusCode int, body []byte) *APIError {
+	apiErr := &APIError{StatusCode: statusCode}
+
+	var env errorEnvelope
+	if err := json.Unmarshal(body, &env); err == nil && (env.Error.Code != "" || env.Error.Message != "") {
+		apiErr.Code = env.Error.Code
+		apiErr.Message = env.Error.Message
+		return apiErr
+	}
+
+	var flat struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &flat); err == nil {
+		apiErr.Code = flat.Code
+		apiErr.Message = flat.Message
+	}
+
+	if apiErr.Code == "" && apiErr.Message == "" {
+		if len(body) > 0 {
+			apiErr.Message = string(body)
+		} else {
+			apiErr.Message = http.StatusText(statusCode)
+		}
+	}
+	return apiErr
+}
 
 // IsAlreadyExists returns true if the error indicates a resource already exists (HTTP 409).
 func IsAlreadyExists(err error) bool {

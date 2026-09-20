@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
@@ -62,17 +65,65 @@ func TestPlatformPolicyResource_Schema_EnabledIsRequired(t *testing.T) {
 	}
 }
 
-func TestPlatformPolicyResource_Schema_EnforcementIsRequired(t *testing.T) {
+// Enforcement has never changed what Shoehorn does, so a configuration no longer
+// has to carry it. One that still does keeps working.
+func TestPlatformPolicyResource_Schema_EnforcementIsOptionalComputedAndDeprecated(t *testing.T) {
 	r := NewPlatformPolicyResource()
 	resp := &resource.SchemaResponse{}
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
-	attr := resp.Schema.Attributes["enforcement"]
-	if attr == nil {
+	attr, ok := resp.Schema.Attributes["enforcement"].(schema.StringAttribute)
+	if !ok {
 		t.Fatal("enforcement attribute not found")
 	}
-	if !attr.IsRequired() {
-		t.Error("enforcement should be required")
+	if attr.IsRequired() {
+		t.Error("enforcement should no longer be required")
+	}
+	if !attr.IsOptional() {
+		t.Error("enforcement should be optional")
+	}
+	if !attr.IsComputed() {
+		t.Error("enforcement should be computed, so omitting it keeps the API's value")
+	}
+	if attr.DeprecationMessage == "" {
+		t.Error("enforcement should be deprecated")
+	}
+}
+
+// The key is checked during plan, so a policy Terraform cannot manage never
+// reaches apply.
+func TestPlatformPolicyResource_Schema_KeyRefusesPoliciesTerraformCannotManage(t *testing.T) {
+	r := NewPlatformPolicyResource()
+	resp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
+
+	attr, ok := resp.Schema.Attributes["key"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("key attribute not found")
+	}
+	if len(attr.Validators) == 0 {
+		t.Fatal("key has no validators")
+	}
+
+	check := func(key string) validator.StringResponse {
+		out := validator.StringResponse{}
+		for _, v := range attr.Validators {
+			v.ValidateString(context.Background(), validator.StringRequest{
+				Path:        path.Root("key"),
+				ConfigValue: types.StringValue(key),
+			}, &out)
+		}
+		return out
+	}
+
+	if !check("tenant-isolation").Diagnostics.HasError() {
+		t.Error("an always-on policy passed validation")
+	}
+	if !check("stale-entity-cleanup").Diagnostics.HasError() {
+		t.Error("a removed policy passed validation")
+	}
+	if out := check("governance-auto-actions"); out.Diagnostics.HasError() {
+		t.Errorf("a setting failed validation: %v", out.Diagnostics)
 	}
 }
 

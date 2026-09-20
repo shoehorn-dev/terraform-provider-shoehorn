@@ -129,3 +129,31 @@ func TestUpdatePolicy_Success(t *testing.T) {
 		t.Errorf("Enforcement = %q, want %q", policy.Enforcement, "block")
 	}
 }
+
+// The API says which policies a tenant can change. Without it a consumer has to
+// guess from `system`.
+func TestListPolicies_ReadsConfigurable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"policies": []map[string]interface{}{
+				{"id": "governance-auto-actions", "key": "governance-auto-actions", "name": "Governance actions",
+					"enabled": true, "system": false, "configurable": true},
+				{"id": "tenant-isolation", "key": "tenant-isolation", "name": "Tenant isolation",
+					"enabled": true, "system": true, "configurable": false},
+			},
+		})
+	}))
+	defer server.Close()
+
+	policies, err := NewClient(server.URL, "key", 30*time.Second).ListPolicies(context.Background())
+	if err != nil {
+		t.Fatalf("ListPolicies() error = %v", err)
+	}
+	if !policies[0].Configurable {
+		t.Error("governance-auto-actions: Configurable = false, want true")
+	}
+	if policies[1].Configurable {
+		t.Error("tenant-isolation: Configurable = true, want false")
+	}
+}
