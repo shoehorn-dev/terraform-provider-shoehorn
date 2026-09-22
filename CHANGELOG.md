@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`shoehorn_api_key`**: the documented example used `expires_in = "90d"`, which the resource never accepted, so copying it failed at `terraform validate`. The example and the resource docs now use `expires_in_days = 90`.
 - **`shoehorn_k8s_agent`**: `terraform destroy` no longer fails when the agent is already gone. Shoehorn 0.7.0 made the agent delete tenant-scoped, so it answers 404 where it previously deleted unconditionally. Destroying twice, or destroying after the cluster was removed elsewhere, errored out and left the resource stuck in state. A 404 is now treated as success, matching every other resource in the provider. Any other failure still surfaces as an error.
 
 ### Added
