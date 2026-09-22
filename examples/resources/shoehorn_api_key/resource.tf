@@ -1,7 +1,7 @@
 # Create an API key for service-to-service authentication
 resource "shoehorn_api_key" "ci_pipeline" {
   name       = "CI Pipeline Key"
-  expires_in = "90d"
+  expires_in_days = 90
   scopes     = ["entities:read", "catalog:read"]
 }
 
