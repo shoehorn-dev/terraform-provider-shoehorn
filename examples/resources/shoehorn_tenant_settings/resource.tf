@@ -25,9 +25,7 @@ resource "shoehorn_tenant_settings" "main" {
     link_text = "View Status Page"
   }
 
-  # Security settings (optional). Names the one team whose "My team" scope
-  # infrastructure CVE findings attribute to; unset means findings appear
-  # only in org-wide scope.
+  # Security (optional)
   security = {
     infrastructure_owner_team = "platform"
   }

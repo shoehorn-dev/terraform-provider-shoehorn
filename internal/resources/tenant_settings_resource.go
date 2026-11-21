@@ -233,11 +233,11 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"security": schema.SingleNestedAttribute{
-				Description: "Security-lens configuration. Terraform is authoritative over this block once set: omitting it clears the infrastructure owner team, the same contract \"forge\" has, so a value set outside Terraform (the admin UI/API) does not persist across an apply that omits this block.",
+				Description: "Security-lens configuration.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"infrastructure_owner_team": schema.StringAttribute{
-						Description: "The one team slug whose \"My team\" scope infrastructure CVE findings attribute to. Required within the block (an empty string would plan as set but read back as unset, since the platform does not distinguish \"unset\" from \"empty\" for this field) - omit the whole security block to clear it instead.",
+						Description: "The one team slug whose \"My team\" scope infrastructure CVE findings attribute to.",
 						Required:    true,
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
@@ -468,14 +468,7 @@ func buildForgeFromModel(ctx context.Context, model *TenantSettingsResourceModel
 	return result
 }
 
-// buildSecurityFromModel sends an EXPLICIT (possibly empty) object, never
-// nil, so Terraform is authoritative over this field - the same contract
-// forge already has, and the only one that can't produce "Provider
-// produced inconsistent result after apply": the platform's security
-// endpoint only preserves the stored value when the request field is nil
-// (omitted), so a null plan must send an explicit empty object to clear
-// it, not nil to preserve whatever a non-Terraform write (the admin UI/
-// API) may have set. See TestSecurityBlock_NullPlan_RoundTripsToNullState.
+// buildSecurityFromModel always returns a non-nil object, keeping Terraform authoritative over the block.
 func buildSecurityFromModel(ctx context.Context, model *TenantSettingsResourceModel, diags *diag.Diagnostics) *client.SecuritySettings {
 	if model.Security.IsNull() || model.Security.IsUnknown() {
 		return &client.SecuritySettings{}
@@ -586,9 +579,7 @@ func mapSettingsToState(ctx context.Context, settings *client.TenantSettings, st
 		state.Forge = types.ObjectNull(forgeTypes)
 	}
 
-	// Map security if present. Unset (empty InfrastructureOwnerTeam) stays
-	// null rather than an object with an empty string, matching forge/
-	// announcement's "absent means not configured" convention above.
+	// Map security if present (empty means unset).
 	securityTypes := map[string]attr.Type{
 		"infrastructure_owner_team": types.StringType,
 	}

@@ -40,9 +40,7 @@ resource "shoehorn_tenant_settings" "main" {
     link_text = "View Status Page"
   }
 
-  # Security settings (optional). Names the one team whose "My team" scope
-  # infrastructure CVE findings attribute to; unset means findings appear
-  # only in org-wide scope.
+  # Security (optional)
   security = {
     infrastructure_owner_team = "platform"
   }
@@ -78,7 +76,7 @@ resource "shoehorn_tenant_settings" "no_announcement" {
 - `platform_name` (String) Name of the platform displayed in the UI.
 - `primary_color` (String) Primary brand color (hex, e.g., #3b82f6). Used for active states and primary buttons.
 - `secondary_color` (String) Secondary brand color (hex, e.g., #64748b). Used for hover states and secondary UI elements.
-- `security` (Attributes) Security-lens configuration. Terraform is authoritative over this block once set: omitting it clears the infrastructure owner team, the same contract "forge" has, so a value set outside Terraform (the admin UI/API) does not persist across an apply that omits this block. (see [below for nested schema](#nestedatt--security))
+- `security` (Attributes) Security-lens configuration. (see [below for nested schema](#nestedatt--security))
 
 ### Read-Only
 
@@ -117,4 +115,4 @@ Optional:
 
 Required:
 
-- `infrastructure_owner_team` (String) The one team slug whose "My team" scope infrastructure CVE findings attribute to. Required within the block (an empty string would plan as set but read back as unset, since the platform does not distinguish "unset" from "empty" for this field) - omit the whole security block to clear it instead.
+- `infrastructure_owner_team` (String) The one team slug whose "My team" scope infrastructure CVE findings attribute to.

@@ -20,8 +20,7 @@ type TenantSettings struct {
 
 // SecuritySettings represents security-lens configuration for a tenant.
 type SecuritySettings struct {
-	// InfrastructureOwnerTeam is the one team slug whose "My team" scope
-	// infra CVE findings attribute to. Empty means unset.
+	// InfrastructureOwnerTeam: empty means unset.
 	InfrastructureOwnerTeam string `json:"infrastructure_owner_team,omitempty"`
 }
 
