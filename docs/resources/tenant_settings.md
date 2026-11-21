@@ -39,6 +39,11 @@ resource "shoehorn_tenant_settings" "main" {
     link_url  = "https://status.acme.com"
     link_text = "View Status Page"
   }
+
+  # Security (optional)
+  security = {
+    infrastructure_owner_team = "platform"
+  }
 }
 
 # Minimal configuration (all fields optional)
@@ -71,6 +76,7 @@ resource "shoehorn_tenant_settings" "no_announcement" {
 - `platform_name` (String) Name of the platform displayed in the UI.
 - `primary_color` (String) Primary brand color (hex, e.g., #3b82f6). Used for active states and primary buttons.
 - `secondary_color` (String) Secondary brand color (hex, e.g., #64748b). Used for hover states and secondary UI elements.
+- `security` (Attributes) Security-lens configuration. (see [below for nested schema](#nestedatt--security))
 
 ### Read-Only
 
@@ -102,3 +108,11 @@ Optional:
 
 - `allowed_orgs` (List of String) List of GitHub organizations allowed for Forge templates.
 - `default_org` (String) Default GitHub organization for Forge templates.
+
+
+<a id="nestedatt--security"></a>
+### Nested Schema for `security`
+
+Required:
+
+- `infrastructure_owner_team` (String) The one team slug whose "My team" scope infrastructure CVE findings attribute to.

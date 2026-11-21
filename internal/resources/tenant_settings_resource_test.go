@@ -181,6 +181,174 @@ func TestBuildAppearanceFromModel(t *testing.T) {
 	}
 }
 
+func TestTenantSettingsResource_Schema_HasSecurityAttribute(t *testing.T) {
+	r := NewTenantSettingsResource()
+	resp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
+
+	attrs := resp.Schema.Attributes
+	if _, ok := attrs["security"]; !ok {
+		t.Error("schema missing security attribute")
+	}
+}
+
+func TestMapSettingsToState_WithSecurity(t *testing.T) {
+	settings := &client.TenantSettings{
+		ID: "settings-1",
+		Appearance: client.AppearanceSettings{
+			PrimaryColor: "#3b82f6",
+		},
+		Security: client.SecuritySettings{
+			InfrastructureOwnerTeam: "platform",
+		},
+		CreatedAt: "2025-01-15T10:00:00Z",
+		UpdatedAt: "2025-01-15T11:00:00Z",
+	}
+
+	state := &TenantSettingsResourceModel{}
+	var diags diag.Diagnostics
+	mapSettingsToState(context.Background(), settings, state, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	if state.Security.IsNull() {
+		t.Fatal("security should not be null")
+	}
+
+	var security SecuritySettingsModel
+	d := state.Security.As(context.Background(), &security, basetypes.ObjectAsOptions{})
+	if d.HasError() {
+		t.Fatalf("failed to parse security: %v", d)
+	}
+	if security.InfrastructureOwnerTeam.ValueString() != "platform" {
+		t.Errorf("security.InfrastructureOwnerTeam = %q, want %q", security.InfrastructureOwnerTeam.ValueString(), "platform")
+	}
+}
+
+func TestMapSettingsToState_WithoutSecurity(t *testing.T) {
+	settings := &client.TenantSettings{
+		ID: "settings-1",
+		Appearance: client.AppearanceSettings{
+			PrimaryColor: "#3b82f6",
+		},
+		CreatedAt: "2025-01-15T10:00:00Z",
+		UpdatedAt: "2025-01-15T11:00:00Z",
+	}
+
+	state := &TenantSettingsResourceModel{}
+	var diags diag.Diagnostics
+	mapSettingsToState(context.Background(), settings, state, &diags)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	// No infrastructure owner team set: must be null, never a guessed value.
+	if !state.Security.IsNull() {
+		t.Error("security should be null when no infrastructure owner team is set")
+	}
+}
+
+func TestBuildSecurityFromModel_WithSecurity(t *testing.T) {
+	securityTypes := map[string]attr.Type{
+		"infrastructure_owner_team": types.StringType,
+	}
+	securityObj, diags := types.ObjectValue(securityTypes, map[string]attr.Value{
+		"infrastructure_owner_team": types.StringValue("checkout"),
+	})
+	if diags.HasError() {
+		t.Fatalf("failed to create security object: %v", diags)
+	}
+
+	model := &TenantSettingsResourceModel{Security: securityObj}
+
+	var d diag.Diagnostics
+	security := buildSecurityFromModel(context.Background(), model, &d)
+	if d.HasError() {
+		t.Fatalf("buildSecurityFromModel failed: %v", d)
+	}
+	if security == nil {
+		t.Fatal("security should not be nil")
+	}
+	if security.InfrastructureOwnerTeam != "checkout" {
+		t.Errorf("InfrastructureOwnerTeam = %q, want %q", security.InfrastructureOwnerTeam, "checkout")
+	}
+}
+
+// TestBuildSecurityFromModel_NullSecurity_SendsExplicitEmpty proves Terraform
+// is authoritative over this field (like forge, not like search): a plan
+// with no security block must send an EXPLICIT empty SecuritySettings, not
+// nil. With nil, the platform's COALESCE preserves whatever is already
+// stored, so a tenant whose team was set via the admin UI/API would get a
+// non-null state back from a null plan - "Provider produced inconsistent
+// result after apply" (Task 10 review panel finding, confirmed by two
+// independent reviewers). Sending an explicit empty object makes the
+// cleared state match the null plan instead.
+func TestBuildSecurityFromModel_NullSecurity_SendsExplicitEmpty(t *testing.T) {
+	model := &TenantSettingsResourceModel{
+		Security: types.ObjectNull(map[string]attr.Type{
+			"infrastructure_owner_team": types.StringType,
+		}),
+	}
+
+	var d diag.Diagnostics
+	security := buildSecurityFromModel(context.Background(), model, &d)
+	if d.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", d)
+	}
+	if security == nil {
+		t.Fatal("expected an explicit empty *client.SecuritySettings for a null security block, got nil")
+	}
+	if security.InfrastructureOwnerTeam != "" {
+		t.Errorf("expected an empty InfrastructureOwnerTeam, got %q", security.InfrastructureOwnerTeam)
+	}
+}
+
+// TestSecurityBlock_NullPlan_RoundTripsToNullState is the round-trip the
+// unit tests above don't individually cover: a null plan must produce a
+// null state after the request/response cycle, even when the tenant's
+// team was previously set through a channel other than this resource
+// (the admin UI/API). buildSecurityFromModel's explicit-empty object is
+// what the platform actually stores (overwrite, not COALESCE-preserve,
+// once a non-nil value is sent); mapSettingsToState must read that back
+// as null, matching the null plan, not "Provider produced inconsistent
+// result after apply".
+func TestSecurityBlock_NullPlan_RoundTripsToNullState(t *testing.T) {
+	plan := &TenantSettingsResourceModel{
+		Security: types.ObjectNull(map[string]attr.Type{
+			"infrastructure_owner_team": types.StringType,
+		}),
+	}
+
+	var buildDiags diag.Diagnostics
+	sentSecurity := buildSecurityFromModel(context.Background(), plan, &buildDiags)
+	if buildDiags.HasError() {
+		t.Fatalf("buildSecurityFromModel: %v", buildDiags)
+	}
+	if sentSecurity == nil {
+		t.Fatal("expected an explicit object to be sent, not nil")
+	}
+
+	// The platform always overwrites security_settings when a non-nil
+	// value is sent (no COALESCE), so the response reflects exactly what
+	// was sent - here, cleared - regardless of what was stored before.
+	apiResponse := &client.TenantSettings{
+		ID:       "settings-1",
+		Security: *sentSecurity,
+	}
+
+	state := &TenantSettingsResourceModel{}
+	var mapDiags diag.Diagnostics
+	mapSettingsToState(context.Background(), apiResponse, state, &mapDiags)
+	if mapDiags.HasError() {
+		t.Fatalf("mapSettingsToState: %v", mapDiags)
+	}
+
+	if !state.Security.IsNull() {
+		t.Errorf("expected state.Security to be null after a null plan round-trips, got %+v", state.Security)
+	}
+}
+
 func TestTenantSettingsResource_Schema_HasAnnouncementAttribute(t *testing.T) {
 	r := NewTenantSettingsResource()
 	resp := &resource.SchemaResponse{}

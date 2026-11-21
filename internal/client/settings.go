@@ -13,8 +13,15 @@ type TenantSettings struct {
 	Appearance   AppearanceSettings   `json:"appearance"`
 	Announcement AnnouncementSettings `json:"announcement,omitempty"`
 	Forge        ForgeSettings        `json:"forge,omitempty"`
+	Security     SecuritySettings     `json:"security,omitempty"`
 	CreatedAt    string               `json:"created_at,omitempty"`
 	UpdatedAt    string               `json:"updated_at,omitempty"`
+}
+
+// SecuritySettings represents security-lens configuration for a tenant.
+type SecuritySettings struct {
+	// InfrastructureOwnerTeam: empty means unset.
+	InfrastructureOwnerTeam string `json:"infrastructure_owner_team,omitempty"`
 }
 
 // AppearanceSettings represents the appearance configuration.
@@ -53,6 +60,7 @@ type UpdateSettingsRequest struct {
 	Appearance   AppearanceSettings    `json:"appearance"`
 	Announcement *AnnouncementSettings `json:"announcement,omitempty"`
 	Forge        *ForgeSettings        `json:"forge,omitempty"`
+	Security     *SecuritySettings     `json:"security,omitempty"`
 }
 
 // GetSettings retrieves the tenant settings.

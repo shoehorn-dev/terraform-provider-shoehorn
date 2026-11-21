@@ -24,6 +24,11 @@ resource "shoehorn_tenant_settings" "main" {
     link_url  = "https://status.acme.com"
     link_text = "View Status Page"
   }
+
+  # Security (optional)
+  security = {
+    infrastructure_owner_team = "platform"
+  }
 }
 
 # Minimal configuration (all fields optional)

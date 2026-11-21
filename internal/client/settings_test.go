@@ -81,6 +81,68 @@ func TestGetSettings_Empty(t *testing.T) {
 	}
 }
 
+func TestGetSettings_Security(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":         "settings-1",
+			"appearance": map[string]interface{}{},
+			"security": map[string]interface{}{
+				"infrastructure_owner_team": "platform",
+			},
+			"created_at": "2025-01-15T10:00:00Z",
+			"updated_at": "2025-01-15T10:00:00Z",
+		})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	settings, err := c.GetSettings(context.Background())
+	if err != nil {
+		t.Fatalf("GetSettings() error = %v", err)
+	}
+
+	if settings.Security.InfrastructureOwnerTeam != "platform" {
+		t.Errorf("InfrastructureOwnerTeam = %q, want %q", settings.Security.InfrastructureOwnerTeam, "platform")
+	}
+}
+
+func TestUpdateSettings_Security(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req UpdateSettingsRequest
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("unmarshal request: %v", err)
+		}
+		if req.Security == nil || req.Security.InfrastructureOwnerTeam != "checkout" {
+			t.Errorf("request security = %+v, want InfrastructureOwnerTeam=checkout", req.Security)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":         "settings-1",
+			"appearance": map[string]interface{}{},
+			"security": map[string]interface{}{
+				"infrastructure_owner_team": "checkout",
+			},
+			"created_at": "2025-01-15T10:00:00Z",
+			"updated_at": "2025-01-15T12:00:00Z",
+		})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	settings, err := c.UpdateSettings(context.Background(), UpdateSettingsRequest{
+		Security: &SecuritySettings{InfrastructureOwnerTeam: "checkout"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSettings() error = %v", err)
+	}
+	if settings.Security.InfrastructureOwnerTeam != "checkout" {
+		t.Errorf("InfrastructureOwnerTeam = %q, want %q", settings.Security.InfrastructureOwnerTeam, "checkout")
+	}
+}
+
 func TestUpdateSettings_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/admin/settings" {
