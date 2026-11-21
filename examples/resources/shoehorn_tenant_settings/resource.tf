@@ -24,6 +24,13 @@ resource "shoehorn_tenant_settings" "main" {
     link_url  = "https://status.acme.com"
     link_text = "View Status Page"
   }
+
+  # Security settings (optional). Names the one team whose "My team" scope
+  # infrastructure CVE findings attribute to; unset means findings appear
+  # only in org-wide scope.
+  security = {
+    infrastructure_owner_team = "platform"
+  }
 }
 
 # Minimal configuration (all fields optional)
