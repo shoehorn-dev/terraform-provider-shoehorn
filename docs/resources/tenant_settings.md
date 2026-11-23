@@ -115,4 +115,4 @@ Optional:
 
 Required:
 
-- `infrastructure_owner_team` (String) The one team slug whose "My team" scope infrastructure CVE findings attribute to.
+- `infrastructure_owner_team` (String) The team slug that owns cluster infrastructure: infrastructure CVE findings show under its "My team" scope, and Kubernetes upgrade and infrastructure update notifications go to it. Without it, only admins get those notifications.

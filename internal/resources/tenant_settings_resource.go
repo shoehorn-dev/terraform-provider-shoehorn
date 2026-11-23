@@ -237,7 +237,7 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"infrastructure_owner_team": schema.StringAttribute{
-						Description: "The one team slug whose \"My team\" scope infrastructure CVE findings attribute to.",
+						Description: "The team slug that owns cluster infrastructure: infrastructure CVE findings show under its \"My team\" scope, and Kubernetes upgrade and infrastructure update notifications go to it. Without it, only admins get those notifications.",
 						Required:    true,
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
