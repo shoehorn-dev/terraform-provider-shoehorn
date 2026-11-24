@@ -1,9 +1,9 @@
 # Manage tenant appearance settings and announcement bar (singleton per tenant)
 resource "shoehorn_tenant_settings" "main" {
-  # Platform Branding
-  platform_name        = "Acme Developer Portal"
-  platform_description = "Internal developer portal for Acme Corp"
-  company_name         = "Acme Corporation"
+  # Header identity
+  platform_name             = "Acme Developer Portal"
+  platform_name_color_light = "#2870a4" # Name color in light theme
+  platform_name_color_dark  = "#8ec9f0" # Name color in dark theme
 
   # Color Palette
   primary_color   = "#3b82f6" # Blue - active states, primary buttons
@@ -11,8 +11,9 @@ resource "shoehorn_tenant_settings" "main" {
   accent_color    = "#8b5cf6" # Purple - highlights, badges
 
   # Assets
-  logo_url     = "https://cdn.example.com/logo.png"
-  favicon_url  = "https://cdn.example.com/favicon.ico"
+  logo_url      = "https://cdn.example.com/logo.png"
+  logo_url_dark = "https://cdn.example.com/logo-white.png" # Optional, shown in dark theme
+  favicon_url   = "https://cdn.example.com/favicon.ico"
   default_theme = "dark" # Options: light, dark, system
 
   # Announcement Bar (optional)

@@ -26,16 +26,17 @@ type SecuritySettings struct {
 
 // AppearanceSettings represents the appearance configuration.
 type AppearanceSettings struct {
-	PrimaryColor        string   `json:"primary_color,omitempty"`
-	SecondaryColor      string   `json:"secondary_color,omitempty"`
-	AccentColor         string   `json:"accent_color,omitempty"`
-	LogoURL             string   `json:"logo_url,omitempty"`
-	FaviconURL          string   `json:"favicon_url,omitempty"`
-	DefaultTheme        string   `json:"default_theme,omitempty"`
-	PlatformName        string   `json:"platform_name,omitempty"`
-	PlatformDescription string   `json:"platform_description,omitempty"`
-	CompanyName         string   `json:"company_name,omitempty"`
-	HiddenPages         []string `json:"hidden_pages,omitempty"`
+	PrimaryColor           string   `json:"primary_color,omitempty"`
+	SecondaryColor         string   `json:"secondary_color,omitempty"`
+	AccentColor            string   `json:"accent_color,omitempty"`
+	LogoURL                string   `json:"logo_url,omitempty"`
+	LogoURLDark            string   `json:"logo_url_dark,omitempty"`
+	FaviconURL             string   `json:"favicon_url,omitempty"`
+	DefaultTheme           string   `json:"default_theme,omitempty"`
+	PlatformName           string   `json:"platform_name,omitempty"`
+	PlatformNameColorLight string   `json:"platform_name_color_light,omitempty"`
+	PlatformNameColorDark  string   `json:"platform_name_color_dark,omitempty"`
+	HiddenPages            []string `json:"hidden_pages,omitempty"`
 }
 
 // ForgeSettings represents the forge configuration for a tenant.

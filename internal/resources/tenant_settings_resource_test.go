@@ -2,12 +2,16 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
@@ -31,8 +35,9 @@ func TestTenantSettingsResource_Schema_HasRequiredAttributes(t *testing.T) {
 	attrs := resp.Schema.Attributes
 	expectedAttrs := []string{
 		"id", "primary_color", "secondary_color", "accent_color",
-		"logo_url", "favicon_url", "default_theme",
-		"platform_name", "platform_description", "company_name",
+		"logo_url", "logo_url_dark", "favicon_url", "default_theme",
+		"platform_name", "platform_name_color_light", "platform_name_color_dark",
+		"platform_description", "company_name",
 		"created_at", "updated_at",
 	}
 	for _, name := range expectedAttrs {
@@ -63,8 +68,9 @@ func TestTenantSettingsResource_Schema_AllAppearanceFieldsOptional(t *testing.T)
 
 	optionalFields := []string{
 		"primary_color", "secondary_color", "accent_color",
-		"logo_url", "favicon_url", "default_theme",
-		"platform_name", "platform_description", "company_name",
+		"logo_url", "logo_url_dark", "favicon_url", "default_theme",
+		"platform_name", "platform_name_color_light", "platform_name_color_dark",
+		"platform_description", "company_name",
 	}
 	for _, name := range optionalFields {
 		attr := resp.Schema.Attributes[name]
@@ -74,6 +80,51 @@ func TestTenantSettingsResource_Schema_AllAppearanceFieldsOptional(t *testing.T)
 		}
 		if !attr.IsOptional() {
 			t.Errorf("%s should be optional", name)
+		}
+	}
+}
+
+func TestTenantSettingsResource_Schema_DeprecatesFieldsThePlatformRemoved(t *testing.T) {
+	r := NewTenantSettingsResource()
+	resp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
+
+	for _, name := range []string{"platform_description", "company_name"} {
+		if msg := resp.Schema.Attributes[name].GetDeprecationMessage(); msg == "" {
+			t.Errorf("%s should carry a deprecation message", name)
+		}
+	}
+	for _, name := range []string{"logo_url", "logo_url_dark", "platform_name", "platform_name_color_light", "platform_name_color_dark"} {
+		if msg := resp.Schema.Attributes[name].GetDeprecationMessage(); msg != "" {
+			t.Errorf("%s should not be deprecated, got %q", name, msg)
+		}
+	}
+}
+
+func TestTenantSettingsResource_Schema_LogoURLDarkRequiresHTTPURL(t *testing.T) {
+	r := NewTenantSettingsResource()
+	resp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
+
+	attribute, ok := resp.Schema.Attributes["logo_url_dark"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("logo_url_dark should be a string attribute")
+	}
+	validate := func(value string) bool {
+		var failed bool
+		for _, v := range attribute.Validators {
+			out := &validator.StringResponse{}
+			v.ValidateString(context.Background(), validator.StringRequest{ConfigValue: types.StringValue(value)}, out)
+			failed = failed || out.Diagnostics.HasError()
+		}
+		return !failed
+	}
+	if !validate("https://cdn.example.com/logo-dark.svg") {
+		t.Error("an https URL should pass")
+	}
+	for _, bad := range []string{"javascript:alert(1)", "data:image/svg+xml,<svg/>", "ftp://example.com/logo.png"} {
+		if validate(bad) {
+			t.Errorf("%q should be rejected", bad)
 		}
 	}
 }
@@ -113,20 +164,24 @@ func TestMapSettingsToState(t *testing.T) {
 		ID:       "settings-1",
 		TenantID: "tenant-123",
 		Appearance: client.AppearanceSettings{
-			PrimaryColor:        "#3b82f6",
-			SecondaryColor:      "#64748b",
-			AccentColor:         "#8b5cf6",
-			LogoURL:             "https://example.com/logo.png",
-			DefaultTheme:        "dark",
-			PlatformName:        "Acme Portal",
-			PlatformDescription: "Internal Developer Platform",
-			CompanyName:         "Acme Corp",
+			PrimaryColor:           "#3b82f6",
+			SecondaryColor:         "#64748b",
+			AccentColor:            "#8b5cf6",
+			LogoURL:                "https://example.com/logo.png",
+			LogoURLDark:            "https://example.com/logo-dark.png",
+			DefaultTheme:           "dark",
+			PlatformName:           "Acme Portal",
+			PlatformNameColorLight: "#2870a4",
+			PlatformNameColorDark:  "#8ec9f0",
 		},
 		CreatedAt: "2025-01-15T10:00:00Z",
 		UpdatedAt: "2025-01-15T11:00:00Z",
 	}
 
-	state := &TenantSettingsResourceModel{}
+	state := &TenantSettingsResourceModel{
+		CompanyName:         types.StringValue("Acme Corp"),
+		PlatformDescription: types.StringNull(),
+	}
 	var diags diag.Diagnostics
 	mapSettingsToState(context.Background(), settings, state, &diags)
 	if diags.HasError() {
@@ -145,8 +200,21 @@ func TestMapSettingsToState(t *testing.T) {
 	if state.DefaultTheme.ValueString() != "dark" {
 		t.Errorf("DefaultTheme = %q, want %q", state.DefaultTheme.ValueString(), "dark")
 	}
+	if state.LogoURLDark.ValueString() != "https://example.com/logo-dark.png" {
+		t.Errorf("LogoURLDark = %q, want %q", state.LogoURLDark.ValueString(), "https://example.com/logo-dark.png")
+	}
+	if state.PlatformNameColorLight.ValueString() != "#2870a4" {
+		t.Errorf("PlatformNameColorLight = %q, want %q", state.PlatformNameColorLight.ValueString(), "#2870a4")
+	}
+	if state.PlatformNameColorDark.ValueString() != "#8ec9f0" {
+		t.Errorf("PlatformNameColorDark = %q, want %q", state.PlatformNameColorDark.ValueString(), "#8ec9f0")
+	}
+	// The platform no longer stores these; Read keeps whatever the config had so there is no diff.
 	if state.CompanyName.ValueString() != "Acme Corp" {
-		t.Errorf("CompanyName = %q, want %q", state.CompanyName.ValueString(), "Acme Corp")
+		t.Errorf("CompanyName = %q, want the prior state value %q", state.CompanyName.ValueString(), "Acme Corp")
+	}
+	if !state.PlatformDescription.IsNull() {
+		t.Errorf("PlatformDescription = %v, want null", state.PlatformDescription)
 	}
 	if state.CreatedAt.ValueString() != "2025-01-15T10:00:00Z" {
 		t.Errorf("CreatedAt = %q, want %q", state.CreatedAt.ValueString(), "2025-01-15T10:00:00Z")
@@ -155,10 +223,14 @@ func TestMapSettingsToState(t *testing.T) {
 
 func TestBuildAppearanceFromModel(t *testing.T) {
 	model := &TenantSettingsResourceModel{
-		PrimaryColor: types.StringValue("#3b82f6"),
-		PlatformName: types.StringValue("Acme Portal"),
-		CompanyName:  types.StringValue("Acme Corp"),
-		DefaultTheme: types.StringValue("dark"),
+		PrimaryColor:           types.StringValue("#3b82f6"),
+		LogoURLDark:            types.StringValue("https://example.com/logo-dark.png"),
+		PlatformName:           types.StringValue("Acme Portal"),
+		PlatformNameColorLight: types.StringValue("#2870a4"),
+		PlatformNameColorDark:  types.StringValue("#8ec9f0"),
+		PlatformDescription:    types.StringValue("Internal Developer Platform"),
+		CompanyName:            types.StringValue("Acme Corp"),
+		DefaultTheme:           types.StringValue("dark"),
 	}
 
 	var diags diag.Diagnostics
@@ -173,11 +245,27 @@ func TestBuildAppearanceFromModel(t *testing.T) {
 	if appearance.PlatformName != "Acme Portal" {
 		t.Errorf("PlatformName = %q, want %q", appearance.PlatformName, "Acme Portal")
 	}
-	if appearance.CompanyName != "Acme Corp" {
-		t.Errorf("CompanyName = %q, want %q", appearance.CompanyName, "Acme Corp")
+	if appearance.LogoURLDark != "https://example.com/logo-dark.png" {
+		t.Errorf("LogoURLDark = %q, want %q", appearance.LogoURLDark, "https://example.com/logo-dark.png")
+	}
+	if appearance.PlatformNameColorLight != "#2870a4" {
+		t.Errorf("PlatformNameColorLight = %q, want %q", appearance.PlatformNameColorLight, "#2870a4")
+	}
+	if appearance.PlatformNameColorDark != "#8ec9f0" {
+		t.Errorf("PlatformNameColorDark = %q, want %q", appearance.PlatformNameColorDark, "#8ec9f0")
 	}
 	if appearance.DefaultTheme != "dark" {
 		t.Errorf("DefaultTheme = %q, want %q", appearance.DefaultTheme, "dark")
+	}
+
+	body, err := json.Marshal(appearance)
+	if err != nil {
+		t.Fatalf("marshal appearance: %v", err)
+	}
+	for _, removed := range []string{"platform_description", "company_name"} {
+		if strings.Contains(string(body), removed) {
+			t.Errorf("request must not send %q, the platform removed it: %s", removed, body)
+		}
 	}
 }
 

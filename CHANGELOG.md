@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scope`, `scope_id`, and `channel_type` force replacement
   - Import via `terraform import` using the form `scope/scope_id/id`
 - **Client APIs**: `CreateNotificationSubscription`, `ListNotificationSubscriptions`, `UpdateNotificationSubscription`, `DeleteNotificationSubscription`
+- **`shoehorn_tenant_settings`**: `logo_url_dark` sets a separate header logo for dark theme. Dark theme falls back to `logo_url` when it's unset. `platform_name_color_light` and `platform_name_color_dark` set the color of the platform name in each theme.
+
+### Deprecated
+
+- **`shoehorn_tenant_settings`**: `platform_description` and `company_name` no longer do anything. Shoehorn stopped using them, and the provider no longer sends them. Remove them from your configuration and use `platform_name` for the name shown in the header.
 
 ## [0.2.0] - 2026-03-22
 

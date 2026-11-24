@@ -10,13 +10,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/shoehorn-dev/terraform-provider-shoehorn/internal/client"
 )
 
@@ -32,22 +32,25 @@ type TenantSettingsResource struct {
 
 // TenantSettingsResourceModel describes the resource data model.
 type TenantSettingsResourceModel struct {
-	ID                  types.String `tfsdk:"id"`
-	PrimaryColor        types.String `tfsdk:"primary_color"`
-	SecondaryColor      types.String `tfsdk:"secondary_color"`
-	AccentColor         types.String `tfsdk:"accent_color"`
-	LogoURL             types.String `tfsdk:"logo_url"`
-	FaviconURL          types.String `tfsdk:"favicon_url"`
-	DefaultTheme        types.String `tfsdk:"default_theme"`
-	PlatformName        types.String `tfsdk:"platform_name"`
-	PlatformDescription types.String `tfsdk:"platform_description"`
-	CompanyName         types.String `tfsdk:"company_name"`
-	HiddenPages         types.List   `tfsdk:"hidden_pages"`
-	Announcement        types.Object `tfsdk:"announcement"`
-	Forge               types.Object `tfsdk:"forge"`
-	Security            types.Object `tfsdk:"security"`
-	CreatedAt           types.String `tfsdk:"created_at"`
-	UpdatedAt           types.String `tfsdk:"updated_at"`
+	ID                     types.String `tfsdk:"id"`
+	PrimaryColor           types.String `tfsdk:"primary_color"`
+	SecondaryColor         types.String `tfsdk:"secondary_color"`
+	AccentColor            types.String `tfsdk:"accent_color"`
+	LogoURL                types.String `tfsdk:"logo_url"`
+	LogoURLDark            types.String `tfsdk:"logo_url_dark"`
+	FaviconURL             types.String `tfsdk:"favicon_url"`
+	DefaultTheme           types.String `tfsdk:"default_theme"`
+	PlatformName           types.String `tfsdk:"platform_name"`
+	PlatformNameColorLight types.String `tfsdk:"platform_name_color_light"`
+	PlatformNameColorDark  types.String `tfsdk:"platform_name_color_dark"`
+	PlatformDescription    types.String `tfsdk:"platform_description"`
+	CompanyName            types.String `tfsdk:"company_name"`
+	HiddenPages            types.List   `tfsdk:"hidden_pages"`
+	Announcement           types.Object `tfsdk:"announcement"`
+	Forge                  types.Object `tfsdk:"forge"`
+	Security               types.Object `tfsdk:"security"`
+	CreatedAt              types.String `tfsdk:"created_at"`
+	UpdatedAt              types.String `tfsdk:"updated_at"`
 }
 
 // AnnouncementSettingsModel represents announcement configuration.
@@ -123,7 +126,17 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"logo_url": schema.StringAttribute{
-				Description: "URL to the company logo (must be http:// or https://).",
+				Description: "URL to the header logo (must be http:// or https://). Used in light theme, and in dark theme unless `logo_url_dark` is set.",
+				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^https?://`),
+						"must be an HTTP or HTTPS URL",
+					),
+				},
+			},
+			"logo_url_dark": schema.StringAttribute{
+				Description: "URL to a header logo for dark theme (must be http:// or https://). Use a version made for dark backgrounds. Dark theme falls back to `logo_url` when this is unset.",
 				Optional:    true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
@@ -150,16 +163,26 @@ func (r *TenantSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"platform_name": schema.StringAttribute{
-				Description: "Name of the platform displayed in the UI.",
+				Description: "Name shown in the header, next to the logo or on its own when there is no logo.",
+				Optional:    true,
+			},
+			"platform_name_color_light": schema.StringAttribute{
+				Description: "Color of the platform name in the header in light theme: a hex code (e.g., #2870a4), a CSS color name, or rgb()/hsl(). Leave unset for the default header color.",
+				Optional:    true,
+			},
+			"platform_name_color_dark": schema.StringAttribute{
+				Description: "Color of the platform name in the header in dark theme: a hex code (e.g., #8ec9f0), a CSS color name, or rgb()/hsl(). Leave unset for the default header color.",
 				Optional:    true,
 			},
 			"platform_description": schema.StringAttribute{
-				Description: "Description of the platform.",
-				Optional:    true,
+				Description:        "No longer used by Shoehorn.",
+				DeprecationMessage: "Shoehorn no longer uses platform_description and ignores its value. Remove it from your configuration.",
+				Optional:           true,
 			},
 			"company_name": schema.StringAttribute{
-				Description: "Company name.",
-				Optional:    true,
+				Description:        "No longer used by Shoehorn. Use platform_name for the name shown in the header.",
+				DeprecationMessage: "Shoehorn no longer uses company_name and ignores its value. Use platform_name for the name shown in the header, and remove company_name from your configuration.",
+				Optional:           true,
 			},
 			"hidden_pages": schema.ListAttribute{
 				ElementType: types.StringType,
@@ -390,6 +413,9 @@ func buildAppearanceFromModel(ctx context.Context, model *TenantSettingsResource
 	if !model.LogoURL.IsNull() && !model.LogoURL.IsUnknown() {
 		appearance.LogoURL = model.LogoURL.ValueString()
 	}
+	if !model.LogoURLDark.IsNull() && !model.LogoURLDark.IsUnknown() {
+		appearance.LogoURLDark = model.LogoURLDark.ValueString()
+	}
 	if !model.FaviconURL.IsNull() && !model.FaviconURL.IsUnknown() {
 		appearance.FaviconURL = model.FaviconURL.ValueString()
 	}
@@ -399,11 +425,11 @@ func buildAppearanceFromModel(ctx context.Context, model *TenantSettingsResource
 	if !model.PlatformName.IsNull() && !model.PlatformName.IsUnknown() {
 		appearance.PlatformName = model.PlatformName.ValueString()
 	}
-	if !model.PlatformDescription.IsNull() && !model.PlatformDescription.IsUnknown() {
-		appearance.PlatformDescription = model.PlatformDescription.ValueString()
+	if !model.PlatformNameColorLight.IsNull() && !model.PlatformNameColorLight.IsUnknown() {
+		appearance.PlatformNameColorLight = model.PlatformNameColorLight.ValueString()
 	}
-	if !model.CompanyName.IsNull() && !model.CompanyName.IsUnknown() {
-		appearance.CompanyName = model.CompanyName.ValueString()
+	if !model.PlatformNameColorDark.IsNull() && !model.PlatformNameColorDark.IsUnknown() {
+		appearance.PlatformNameColorDark = model.PlatformNameColorDark.ValueString()
 	}
 
 	if !model.HiddenPages.IsNull() && !model.HiddenPages.IsUnknown() {
@@ -494,11 +520,14 @@ func mapSettingsToState(ctx context.Context, settings *client.TenantSettings, st
 	state.SecondaryColor = preserveOrNull(settings.Appearance.SecondaryColor, state.SecondaryColor)
 	state.AccentColor = preserveOrNull(settings.Appearance.AccentColor, state.AccentColor)
 	state.LogoURL = preserveOrNull(settings.Appearance.LogoURL, state.LogoURL)
+	state.LogoURLDark = preserveOrNull(settings.Appearance.LogoURLDark, state.LogoURLDark)
 	state.FaviconURL = preserveOrNull(settings.Appearance.FaviconURL, state.FaviconURL)
 	state.DefaultTheme = preserveOrNull(settings.Appearance.DefaultTheme, state.DefaultTheme)
 	state.PlatformName = preserveOrNull(settings.Appearance.PlatformName, state.PlatformName)
-	state.PlatformDescription = preserveOrNull(settings.Appearance.PlatformDescription, state.PlatformDescription)
-	state.CompanyName = preserveOrNull(settings.Appearance.CompanyName, state.CompanyName)
+	state.PlatformNameColorLight = preserveOrNull(settings.Appearance.PlatformNameColorLight, state.PlatformNameColorLight)
+	state.PlatformNameColorDark = preserveOrNull(settings.Appearance.PlatformNameColorDark, state.PlatformNameColorDark)
+	// platform_description and company_name are deprecated and no longer stored by the
+	// platform; state keeps the configured value so existing configs show no diff.
 
 	// Map hidden_pages
 	if len(settings.Appearance.HiddenPages) > 0 {

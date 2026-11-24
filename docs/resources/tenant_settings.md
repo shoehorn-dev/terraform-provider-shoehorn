@@ -15,10 +15,10 @@ Manages Shoehorn tenant appearance settings. This is a singleton resource per te
 ```terraform
 # Manage tenant appearance settings and announcement bar (singleton per tenant)
 resource "shoehorn_tenant_settings" "main" {
-  # Platform Branding
-  platform_name        = "Acme Developer Portal"
-  platform_description = "Internal developer portal for Acme Corp"
-  company_name         = "Acme Corporation"
+  # Header identity
+  platform_name             = "Acme Developer Portal"
+  platform_name_color_light = "#2870a4" # Name color in light theme
+  platform_name_color_dark  = "#8ec9f0" # Name color in dark theme
 
   # Color Palette
   primary_color   = "#3b82f6" # Blue - active states, primary buttons
@@ -26,8 +26,9 @@ resource "shoehorn_tenant_settings" "main" {
   accent_color    = "#8b5cf6" # Purple - highlights, badges
 
   # Assets
-  logo_url     = "https://cdn.example.com/logo.png"
-  favicon_url  = "https://cdn.example.com/favicon.ico"
+  logo_url      = "https://cdn.example.com/logo.png"
+  logo_url_dark = "https://cdn.example.com/logo-white.png" # Optional, shown in dark theme
+  favicon_url   = "https://cdn.example.com/favicon.ico"
   default_theme = "dark" # Options: light, dark, system
 
   # Announcement Bar (optional)
@@ -66,14 +67,17 @@ resource "shoehorn_tenant_settings" "no_announcement" {
 
 - `accent_color` (String) Accent color (hex, e.g., #8b5cf6). Used for highlights, badges, and emphasis.
 - `announcement` (Attributes) Announcement bar configuration. (see [below for nested schema](#nestedatt--announcement))
-- `company_name` (String) Company name.
+- `company_name` (String, Deprecated) No longer used by Shoehorn. Use platform_name for the name shown in the header.
 - `default_theme` (String) Default theme for users. Valid values: light, dark, system.
 - `favicon_url` (String) URL to the favicon (must be http:// or https://).
 - `forge` (Attributes) Forge configuration for scaffolding and templates. (see [below for nested schema](#nestedatt--forge))
 - `hidden_pages` (List of String) List of page slugs to hide from non-admin users (e.g., forge, insights).
-- `logo_url` (String) URL to the company logo (must be http:// or https://).
-- `platform_description` (String) Description of the platform.
-- `platform_name` (String) Name of the platform displayed in the UI.
+- `logo_url` (String) URL to the header logo (must be http:// or https://). Used in light theme, and in dark theme unless `logo_url_dark` is set.
+- `logo_url_dark` (String) URL to a header logo for dark theme (must be http:// or https://). Use a version made for dark backgrounds. Dark theme falls back to `logo_url` when this is unset.
+- `platform_description` (String, Deprecated) No longer used by Shoehorn.
+- `platform_name` (String) Name shown in the header, next to the logo or on its own when there is no logo.
+- `platform_name_color_dark` (String) Color of the platform name in the header in dark theme: a hex code (e.g., #8ec9f0), a CSS color name, or rgb()/hsl(). Leave unset for the default header color.
+- `platform_name_color_light` (String) Color of the platform name in the header in light theme: a hex code (e.g., #2870a4), a CSS color name, or rgb()/hsl(). Leave unset for the default header color.
 - `primary_color` (String) Primary brand color (hex, e.g., #3b82f6). Used for active states and primary buttons.
 - `secondary_color` (String) Secondary brand color (hex, e.g., #64748b). Used for hover states and secondary UI elements.
 - `security` (Attributes) Security-lens configuration. (see [below for nested schema](#nestedatt--security))
