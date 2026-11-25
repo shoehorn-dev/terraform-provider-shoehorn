@@ -12,9 +12,31 @@ var ErrNotFound = errors.New("resource not found")
 // errorEnvelope is Shoehorn's error shape: code and message sit under "error".
 type errorEnvelope struct {
 	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
+		Code    string          `json:"code"`
+		Message string          `json:"message"`
+		Details json.RawMessage `json:"details"`
 	} `json:"error"`
+}
+
+// FieldError is one rejected field from a validation error's details.
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+// fieldErrors returns details as field errors, or nil when details has another shape.
+func fieldErrors(details json.RawMessage) []FieldError {
+	var fields []FieldError
+	if len(details) == 0 || json.Unmarshal(details, &fields) != nil {
+		return nil
+	}
+	kept := fields[:0]
+	for _, f := range fields {
+		if f.Field != "" {
+			kept = append(kept, f)
+		}
+	}
+	return kept
 }
 
 // parseAPIError reads Shoehorn's envelope, then a flat {"code","message"}, then the raw body.
@@ -25,6 +47,7 @@ func parseAPIError(statusCode int, body []byte) *APIError {
 	if err := json.Unmarshal(body, &env); err == nil && (env.Error.Code != "" || env.Error.Message != "") {
 		apiErr.Code = env.Error.Code
 		apiErr.Message = env.Error.Message
+		apiErr.Fields = fieldErrors(env.Error.Details)
 		return apiErr
 	}
 

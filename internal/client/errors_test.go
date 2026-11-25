@@ -3,8 +3,54 @@ package client
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
+
+func TestParseAPIError_NamesTheFieldsAValidationErrorRejected(t *testing.T) {
+	body := []byte(`{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[` +
+		`{"field":"appearance.platform_name_color_light","message":"must be a hex color, a named CSS color, or an rgb()/rgba()/hsl()/hsla() value"},` +
+		`{"field":"appearance.logo_url_dark","message":"must be a valid URL"}]}}`)
+
+	got := parseAPIError(400, body).Error()
+
+	for _, want := range []string{
+		"VALIDATION_ERROR - Request validation failed",
+		"appearance.platform_name_color_light: must be a hex color",
+		"appearance.logo_url_dark: must be a valid URL",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Error() = %q, want it to contain %q", got, want)
+		}
+	}
+}
+
+func TestParseAPIError_DetailEdgeCasesKeepThePlainMessage(t *testing.T) {
+	for name, details := range map[string]string{
+		"null":                `null`,
+		"empty object entry":  `[{}]`,
+		"non-object entries":  `[1, 2]`,
+		"entry without field": `[{"message":"orphan"}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := []byte(`{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":` + details + `}}`)
+			got := parseAPIError(400, body).Error()
+			if got != "shoehorn API error (HTTP 400): VALIDATION_ERROR - Request validation failed" {
+				t.Errorf("Error() = %q, want the plain code and message", got)
+			}
+		})
+	}
+}
+
+func TestParseAPIError_IgnoresDetailsThatAreNotFieldErrors(t *testing.T) {
+	body := []byte(`{"error":{"code":"CONFLICT","message":"Already exists","details":{"existing_id":"abc"}}}`)
+
+	got := parseAPIError(409, body).Error()
+
+	if got != "shoehorn API error (HTTP 409): CONFLICT - Already exists" {
+		t.Errorf("Error() = %q, want the plain code and message", got)
+	}
+}
 
 func TestIsNotFound_WithErrNotFound(t *testing.T) {
 	t.Parallel()

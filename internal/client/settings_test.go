@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -62,6 +63,27 @@ func TestGetSettings_Success(t *testing.T) {
 	}
 	if settings.Appearance.PlatformNameColorDark != "#8ec9f0" {
 		t.Errorf("PlatformNameColorDark = %q, want %q", settings.Appearance.PlatformNameColorDark, "#8ec9f0")
+	}
+}
+
+func TestUpdateSettings_ValidationErrorNamesTheRejectedField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[` +
+			`{"field":"appearance.platform_name_color_dark","message":"must be a hex color, a named CSS color, or an rgb()/rgba()/hsl()/hsla() value"}]}}`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.UpdateSettings(context.Background(), UpdateSettingsRequest{
+		Appearance: AppearanceSettings{PlatformNameColorDark: "not-a-color"},
+	})
+	if err == nil {
+		t.Fatal("UpdateSettings() error = nil, want a validation error")
+	}
+	if !strings.Contains(err.Error(), "appearance.platform_name_color_dark: must be a hex color") {
+		t.Errorf("error = %q, want it to name the rejected field and the reason", err.Error())
 	}
 }
 
