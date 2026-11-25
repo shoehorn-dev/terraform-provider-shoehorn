@@ -30,14 +30,23 @@ type APIError struct {
 	StatusCode int
 	Code       string `json:"code"`
 	Message    string `json:"message"`
+	Fields     []FieldError
 }
 
 // Error returns a human-readable description of the API error including the HTTP status code.
 func (e *APIError) Error() string {
+	msg := fmt.Sprintf("shoehorn API error (HTTP %d): %s", e.StatusCode, e.Message)
 	if e.Code != "" {
-		return fmt.Sprintf("shoehorn API error (HTTP %d): %s - %s", e.StatusCode, e.Code, e.Message)
+		msg = fmt.Sprintf("shoehorn API error (HTTP %d): %s - %s", e.StatusCode, e.Code, e.Message)
 	}
-	return fmt.Sprintf("shoehorn API error (HTTP %d): %s", e.StatusCode, e.Message)
+	if len(e.Fields) == 0 {
+		return msg
+	}
+	parts := make([]string, len(e.Fields))
+	for i, f := range e.Fields {
+		parts[i] = f.Field + ": " + f.Message
+	}
+	return msg + " (" + strings.Join(parts, "; ") + ")"
 }
 
 // NewClient creates a new Shoehorn API client with the given base URL, API key,

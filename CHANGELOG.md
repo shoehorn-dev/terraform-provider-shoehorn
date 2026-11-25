@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **API errors**: when Shoehorn rejects a value, the error now names the field and the reason, for example `appearance.platform_name_color_light: must be a hex color, a named CSS color, or an rgb()/rgba()/hsl()/hsla() value`. It used to say only "Request validation failed".
 - **`shoehorn_api_key`**: the documented example used `expires_in = "90d"`, which the resource never accepted, so copying it failed at `terraform validate`. The example and the resource docs now use `expires_in_days = 90`.
 - **`shoehorn_k8s_agent`**: `terraform destroy` no longer fails when the agent is already gone. Shoehorn 0.7.0 made the agent delete tenant-scoped, so it answers 404 where it previously deleted unconditionally. Destroying twice, or destroying after the cluster was removed elsewhere, errored out and left the resource stuck in state. A 404 is now treated as success, matching every other resource in the provider. Any other failure still surfaces as an error.
 
@@ -21,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scope`, `scope_id`, and `channel_type` force replacement
   - Import via `terraform import` using the form `scope/scope_id/id`
 - **Client APIs**: `CreateNotificationSubscription`, `ListNotificationSubscriptions`, `UpdateNotificationSubscription`, `DeleteNotificationSubscription`
+- **`shoehorn_tenant_settings`**: `logo_url_dark` sets a separate header logo for dark theme. Dark theme falls back to `logo_url` when it's unset. `platform_name_color_light` and `platform_name_color_dark` set the color of the platform name in each theme.
+
+### Deprecated
+
+- **`shoehorn_tenant_settings`**: `platform_description` and `company_name` no longer do anything. Shoehorn stopped using them, and the provider no longer sends them. Remove them from your configuration and use `platform_name` for the name shown in the header.
 
 ## [0.2.0] - 2026-03-22
 

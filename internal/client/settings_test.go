@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -20,14 +21,15 @@ func TestGetSettings_Success(t *testing.T) {
 			"id":        "settings-1",
 			"tenant_id": "tenant-123",
 			"appearance": map[string]interface{}{
-				"primary_color":        "#3b82f6",
-				"secondary_color":      "#64748b",
-				"accent_color":         "#8b5cf6",
-				"logo_url":             "https://example.com/logo.png",
-				"default_theme":        "dark",
-				"platform_name":        "Acme Portal",
-				"platform_description": "Internal Developer Platform",
-				"company_name":         "Acme Corp",
+				"primary_color":             "#3b82f6",
+				"secondary_color":           "#64748b",
+				"accent_color":              "#8b5cf6",
+				"logo_url":                  "https://example.com/logo.png",
+				"logo_url_dark":             "https://example.com/logo-dark.png",
+				"default_theme":             "dark",
+				"platform_name":             "Acme Portal",
+				"platform_name_color_light": "#2870a4",
+				"platform_name_color_dark":  "#8ec9f0",
 			},
 			"created_at": "2025-01-15T10:00:00Z",
 			"updated_at": "2025-01-15T11:00:00Z",
@@ -53,8 +55,76 @@ func TestGetSettings_Success(t *testing.T) {
 	if settings.Appearance.DefaultTheme != "dark" {
 		t.Errorf("DefaultTheme = %q, want %q", settings.Appearance.DefaultTheme, "dark")
 	}
-	if settings.Appearance.CompanyName != "Acme Corp" {
-		t.Errorf("CompanyName = %q, want %q", settings.Appearance.CompanyName, "Acme Corp")
+	if settings.Appearance.LogoURLDark != "https://example.com/logo-dark.png" {
+		t.Errorf("LogoURLDark = %q, want %q", settings.Appearance.LogoURLDark, "https://example.com/logo-dark.png")
+	}
+	if settings.Appearance.PlatformNameColorLight != "#2870a4" {
+		t.Errorf("PlatformNameColorLight = %q, want %q", settings.Appearance.PlatformNameColorLight, "#2870a4")
+	}
+	if settings.Appearance.PlatformNameColorDark != "#8ec9f0" {
+		t.Errorf("PlatformNameColorDark = %q, want %q", settings.Appearance.PlatformNameColorDark, "#8ec9f0")
+	}
+}
+
+func TestUpdateSettings_ValidationErrorNamesTheRejectedField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[` +
+			`{"field":"appearance.platform_name_color_dark","message":"must be a hex color, a named CSS color, or an rgb()/rgba()/hsl()/hsla() value"}]}}`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.UpdateSettings(context.Background(), UpdateSettingsRequest{
+		Appearance: AppearanceSettings{PlatformNameColorDark: "not-a-color"},
+	})
+	if err == nil {
+		t.Fatal("UpdateSettings() error = nil, want a validation error")
+	}
+	if !strings.Contains(err.Error(), "appearance.platform_name_color_dark: must be a hex color") {
+		t.Errorf("error = %q, want it to name the rejected field and the reason", err.Error())
+	}
+}
+
+func TestUpdateSettings_SendsDarkLogoAndColorsButNotRemovedFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var raw map[string]map[string]interface{}
+		if err := json.Unmarshal(body, &raw); err != nil {
+			t.Fatalf("unmarshal request: %v", err)
+		}
+		appearance := raw["appearance"]
+		want := map[string]string{
+			"logo_url_dark":             "https://example.com/logo-dark.png",
+			"platform_name_color_light": "#2870a4",
+			"platform_name_color_dark":  "#8ec9f0",
+		}
+		for key, value := range want {
+			if appearance[key] != value {
+				t.Errorf("appearance[%q] = %v, want %q", key, appearance[key], value)
+			}
+		}
+		for _, removed := range []string{"platform_description", "company_name"} {
+			if _, ok := appearance[removed]; ok {
+				t.Errorf("appearance must not send %q, the platform removed it", removed)
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"id": "settings-1", "appearance": appearance})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "key", 30*time.Second)
+	_, err := c.UpdateSettings(context.Background(), UpdateSettingsRequest{
+		Appearance: AppearanceSettings{
+			LogoURLDark:            "https://example.com/logo-dark.png",
+			PlatformNameColorLight: "#2870a4",
+			PlatformNameColorDark:  "#8ec9f0",
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSettings() error = %v", err)
 	}
 }
 
@@ -166,7 +236,6 @@ func TestUpdateSettings_Success(t *testing.T) {
 			"appearance": map[string]interface{}{
 				"primary_color": "#3b82f6",
 				"platform_name": "Updated Portal",
-				"company_name":  "Acme Corp",
 			},
 			"created_at": "2025-01-15T10:00:00Z",
 			"updated_at": "2025-01-15T12:00:00Z",
@@ -179,7 +248,6 @@ func TestUpdateSettings_Success(t *testing.T) {
 		Appearance: AppearanceSettings{
 			PrimaryColor: "#3b82f6",
 			PlatformName: "Updated Portal",
-			CompanyName:  "Acme Corp",
 		},
 	})
 	if err != nil {
