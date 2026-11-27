@@ -17,7 +17,7 @@ Manages a Shoehorn API key. The raw key is only available on creation and stored
 resource "shoehorn_api_key" "ci_pipeline" {
   name       = "CI Pipeline Key"
   expires_in_days = 90
-  scopes     = ["entities:read", "catalog:read"]
+  scopes     = ["catalog:read"]
 }
 
 # The raw key is only available after creation
@@ -33,7 +33,7 @@ output "api_key" {
 ### Required
 
 - `name` (String) The name of the API key.
-- `scopes` (List of String) The scopes granted to this API key.
+- `scopes` (List of String) The scopes granted to this API key, as `family:level`. Families `catalog`, `repositories`, `forge`, `operations`, `marketplace` and `admin` take `read`, `write` or `admin`; `k8s-agents` also takes `create`, `update` and `delete`; and `mcp:read` lets the key use MCP. A key can only grant scopes the credential creating it holds. Asking for more returns a 403 that names them.
 
 ### Optional
 

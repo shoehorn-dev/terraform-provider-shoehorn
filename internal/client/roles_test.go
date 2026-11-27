@@ -120,55 +120,33 @@ func TestAddUserRole_Success(t *testing.T) {
 	}
 }
 
-func TestRemoveUserRole_Success(t *testing.T) {
-	var gotPath string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		if r.Method != http.MethodDelete {
-			t.Errorf("unexpected method: %s", r.Method)
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+// Shoehorn removes a role with DELETE /api/v1/roles/users/{userId}/roles and the
+// role in the JSON body; there is no route with the role in the path, so
+// destroying a shoehorn_user_role answered 404 (2026-11-27 parity audit, 8b).
+func TestRemoveUserRole_SendsRoleInBody(t *testing.T) {
+	for _, role := range []string{"admin", "org/admin"} {
+		t.Run(role, func(t *testing.T) {
+			var gotMethod, gotPath string
+			var gotBody map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotMethod, gotPath = r.Method, r.URL.Path
+				body, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(body, &gotBody)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
 
-	c := NewClient(server.URL, "key", 30*time.Second)
-	err := c.RemoveUserRole(context.Background(), "user-1", RoleRequest{Role: "admin"})
-	if err != nil {
-		t.Fatalf("RemoveUserRole() error = %v", err)
-	}
-
-	// The role MUST be included in the DELETE path to avoid removing all roles
-	wantPath := "/api/v1/roles/users/user-1/roles/admin"
-	if gotPath != wantPath {
-		t.Errorf("DELETE path = %q, want %q (role must be in path)", gotPath, wantPath)
-	}
-}
-
-func TestRemoveUserRole_SpecialCharsInRole(t *testing.T) {
-	var gotRawPath, gotPath string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotRawPath = r.URL.RawPath
-		gotPath = r.URL.Path
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	c := NewClient(server.URL, "key", 30*time.Second)
-	err := c.RemoveUserRole(context.Background(), "user-1", RoleRequest{Role: "org/admin"})
-	if err != nil {
-		t.Fatalf("RemoveUserRole() error = %v", err)
-	}
-
-	// RawPath preserves the URL encoding; role containing "/" should be encoded as %2F
-	wantRawPath := "/api/v1/roles/users/user-1/roles/org%2Fadmin"
-	if gotRawPath != wantRawPath {
-		t.Errorf("DELETE raw path = %q, want %q (role must be URL-encoded)", gotRawPath, wantRawPath)
-	}
-
-	// Decoded path should show the full role name
-	wantDecodedPath := "/api/v1/roles/users/user-1/roles/org/admin"
-	if gotPath != wantDecodedPath {
-		t.Errorf("DELETE decoded path = %q, want %q", gotPath, wantDecodedPath)
+			c := NewClient(server.URL, "key", 30*time.Second)
+			if err := c.RemoveUserRole(context.Background(), "user-1", RoleRequest{Role: role}); err != nil {
+				t.Fatalf("RemoveUserRole() error = %v", err)
+			}
+			if gotMethod != http.MethodDelete || gotPath != "/api/v1/roles/users/user-1/roles" {
+				t.Errorf("request = %s %s, want DELETE /api/v1/roles/users/user-1/roles", gotMethod, gotPath)
+			}
+			if gotBody["role"] != role {
+				t.Errorf("body role = %v, want %q", gotBody["role"], role)
+			}
+		})
 	}
 }
 
@@ -196,11 +174,14 @@ func TestRoleClient_Lifecycle_Integration(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]interface{}{"roles": roles, "count": len(roles)})
 
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/roles/users/user-1/roles/admin":
-			// Remove the specific role
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/roles/users/user-1/roles":
+			// Remove the role named in the body, as Shoehorn does
+			body, _ := io.ReadAll(r.Body)
+			var req map[string]interface{}
+			_ = json.Unmarshal(body, &req)
 			newRoles := make([]map[string]interface{}, 0)
 			for _, role := range roles {
-				if role["role"] != "admin" {
+				if role["role"] != req["role"] {
 					newRoles = append(newRoles, role)
 				}
 			}

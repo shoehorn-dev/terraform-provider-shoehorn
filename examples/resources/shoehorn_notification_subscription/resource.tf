@@ -6,7 +6,7 @@ resource "shoehorn_notification_subscription" "team_cve_slack" {
   scope_id = shoehorn_team.platform.id
 
   name         = "Platform CVE alerts"
-  event_types  = ["cve.detected", "cve.fix_available"]
+  event_types  = ["security.cve"]
   min_severity = "warning"
   cadence      = "realtime"
 
@@ -23,7 +23,7 @@ resource "shoehorn_notification_subscription" "team_digest_webhook" {
   scope_id = shoehorn_team.platform.id
 
   name         = "Workload health digest"
-  event_types  = ["workload.unhealthy"]
+  event_types  = ["k8s.workload.unhealthy", "k8s.workload.oom_kill"]
   min_severity = "info"
   cadence      = "daily"
 

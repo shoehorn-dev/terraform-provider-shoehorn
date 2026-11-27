@@ -7,14 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`shoehorn_platform_policy`**: only the two policies you can change, `governance-auto-actions` and `api-key-expiration`, are accepted. A protection that's always on, like `audit-logging`, or one Shoehorn 0.7.0 removed, now fails at plan and says why. Remove those from your configuration before upgrading.
+
 ### Fixed
 
+- **`shoehorn_user_role`**: removing a role failed with "not found", and Shoehorn turned down every new assignment. Both work against Shoehorn 0.7.0.
+- **`shoehorn_api_key`**: the example asked for `entities:read`, which isn't a scope, so copying it failed. It now uses `catalog:read`, and the `scopes` docs list the valid scopes and explain that a key can only grant scopes its creator holds.
+- **`shoehorn_notification_subscription`**: the examples used event types that never fire. They now use `security.cve`, `k8s.workload.unhealthy` and `k8s.workload.oom_kill`.
 - **API errors**: when Shoehorn rejects a value, the error now names the field and the reason, for example `appearance.platform_name_color_light: must be a hex color, a named CSS color, or an rgb()/rgba()/hsl()/hsla() value`. It used to say only "Request validation failed".
 - **`shoehorn_api_key`**: the documented example used `expires_in = "90d"`, which the resource never accepted, so copying it failed at `terraform validate`. The example and the resource docs now use `expires_in_days = 90`.
 - **`shoehorn_k8s_agent`**: `terraform destroy` no longer fails when the agent is already gone. Shoehorn 0.7.0 made the agent delete tenant-scoped, so it answers 404 where it previously deleted unconditionally. Destroying twice, or destroying after the cluster was removed elsewhere, errored out and left the resource stuck in state. A 404 is now treated as success, matching every other resource in the provider. Any other failure still surfaces as an error.
 
 ### Added
 
+- **`shoehorn_tenant_settings`**: `security.infrastructure_owner_team` picks the team that owns your cluster infrastructure. It sees infrastructure CVE findings under "My team" and gets Kubernetes upgrade and infrastructure update notifications.
 - **`shoehorn_notification_subscription`** resource: Manages a notification subscription that routes platform events to a channel for a team or user
   - Attributes: `scope`, `scope_id`, `name`, `enabled`, `event_types`, `min_severity`, `entity_filter`, `channel_type`, `cadence`, `cadence_config`
   - Typed nested blocks `slack`, `webhook`, and `email` for channel config; `inapp` needs no block

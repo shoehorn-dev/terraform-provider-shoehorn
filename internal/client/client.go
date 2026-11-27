@@ -192,6 +192,12 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 	return err
 }
 
+// DeleteWithBody performs an authenticated DELETE request with a JSON-encoded body.
+func (c *Client) DeleteWithBody(ctx context.Context, path string, body interface{}) error {
+	_, _, err := c.doRequest(ctx, http.MethodDelete, path, body)
+	return err
+}
+
 // Patch performs an authenticated PATCH request to the given API path with a JSON-encoded body.
 func (c *Client) Patch(ctx context.Context, path string, body interface{}) ([]byte, error) {
 	respBody, _, err := c.doRequest(ctx, http.MethodPatch, path, body)

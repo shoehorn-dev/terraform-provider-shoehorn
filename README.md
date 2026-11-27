@@ -323,7 +323,7 @@ Provisions API keys for service-to-service authentication.
 resource "shoehorn_api_key" "ci" {
   name       = "CI Pipeline Key"
   expires_in = "90d"
-  scopes     = ["entities:read", "catalog:read"]
+  scopes     = ["catalog:read"]
 }
 
 output "api_key" {

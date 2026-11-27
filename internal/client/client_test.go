@@ -229,9 +229,9 @@ func TestClient_ErrorResponse_4xx(t *testing.T) {
 		},
 		// Shoehorn nests the error under "error".
 		{
-			name:       "400 always-on policy, Shoehorn's nested shape",
-			statusCode: http.StatusBadRequest,
-			body:       `{"error":{"code":"POLICY_ALWAYS_ON","title":"Bad Request","message":"This protection is always on and can't be changed","status":400},"requestId":"3f1c","timestamp":"2026-09-20T09:00:00Z"}`,
+			name:       "409 always-on policy, Shoehorn's nested shape",
+			statusCode: http.StatusConflict,
+			body:       `{"error":{"code":"POLICY_ALWAYS_ON","title":"Conflict","message":"This protection is always on and can't be changed","status":409},"requestId":"3f1c","timestamp":"2026-09-20T09:00:00Z"}`,
 			wantCode:   "POLICY_ALWAYS_ON",
 			wantMsg:    "This protection is always on and can't be changed",
 		},

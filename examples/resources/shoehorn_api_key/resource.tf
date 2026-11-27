@@ -2,7 +2,7 @@
 resource "shoehorn_api_key" "ci_pipeline" {
   name       = "CI Pipeline Key"
   expires_in_days = 90
-  scopes     = ["entities:read", "catalog:read"]
+  scopes     = ["catalog:read"]
 }
 
 # The raw key is only available after creation
