@@ -21,7 +21,7 @@ resource "shoehorn_notification_subscription" "team_cve_slack" {
   scope_id = shoehorn_team.platform.id
 
   name         = "Platform CVE alerts"
-  event_types  = ["cve.detected", "cve.fix_available"]
+  event_types  = ["security.cve"]
   min_severity = "warning"
   cadence      = "realtime"
 
@@ -38,7 +38,7 @@ resource "shoehorn_notification_subscription" "team_digest_webhook" {
   scope_id = shoehorn_team.platform.id
 
   name         = "Workload health digest"
-  event_types  = ["workload.unhealthy"]
+  event_types  = ["k8s.workload.unhealthy", "k8s.workload.oom_kill"]
   min_severity = "info"
   cadence      = "daily"
 
@@ -58,7 +58,7 @@ resource "shoehorn_notification_subscription" "team_digest_webhook" {
 
 - `cadence` (String) The delivery cadence: `realtime`, `hourly`, `daily`, or `weekly`.
 - `channel_type` (String) The channel type: `inapp`, `slack`, `email`, or `webhook`.
-- `event_types` (Set of String) The set of event types the subscription matches. Must be non-empty.
+- `event_types` (Set of String) The set of event types the subscription matches, for example `security.cve`, `k8s.workload.unhealthy`, `k8s.workload.oom_kill` or `governance.action.required`. Must be non-empty.
 - `min_severity` (String) The minimum severity to match: `info`, `warning`, or `critical`.
 - `name` (String) The display name of the subscription (1-255 characters).
 - `scope` (String) The subscription scope: `team` or `user`.

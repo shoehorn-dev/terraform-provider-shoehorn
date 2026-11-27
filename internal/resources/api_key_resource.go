@@ -70,7 +70,7 @@ func (r *APIKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				},
 			},
 			"scopes": schema.ListAttribute{
-				Description: "The scopes granted to this API key.",
+				Description: "The scopes granted to this API key, as `family:level`. Families `catalog`, `repositories`, `forge`, `operations`, `marketplace` and `admin` take `read`, `write` or `admin`; `k8s-agents` also takes `create`, `update` and `delete`; and `mcp:read` lets the key use MCP. A key can only grant scopes the credential creating it holds. Asking for more returns a 403 that names them.",
 				Required:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{

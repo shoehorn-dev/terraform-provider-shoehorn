@@ -122,7 +122,7 @@ func (r *NotificationSubscriptionResource) Schema(_ context.Context, _ resource.
 				Default:     booldefault.StaticBool(true),
 			},
 			"event_types": schema.SetAttribute{
-				Description: "The set of event types the subscription matches. Must be non-empty.",
+				Description: "The set of event types the subscription matches, for example `security.cve`, `k8s.workload.unhealthy`, `k8s.workload.oom_kill` or `governance.action.required`. Must be non-empty.",
 				Required:    true,
 				ElementType: types.StringType,
 				Validators: []validator.Set{

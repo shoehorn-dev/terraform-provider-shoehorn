@@ -67,11 +67,12 @@ func (c *Client) AddUserRole(ctx context.Context, userID string, req RoleRequest
 	return nil
 }
 
-// RemoveUserRole removes a specific role from a user by issuing a DELETE to
-// /api/v1/roles/users/{userID}/roles/{role}.
+// RemoveUserRole removes one role from a user with a DELETE to
+// /api/v1/roles/users/{userID}/roles, naming the role in the JSON body. That is
+// the only removal route Shoehorn has.
 func (c *Client) RemoveUserRole(ctx context.Context, userID string, req RoleRequest) error {
-	path := fmt.Sprintf("/api/v1/roles/users/%s/roles/%s", url.PathEscape(userID), url.PathEscape(req.Role))
-	if err := c.Delete(ctx, path); err != nil {
+	path := fmt.Sprintf("/api/v1/roles/users/%s/roles", url.PathEscape(userID))
+	if err := c.DeleteWithBody(ctx, path, req); err != nil {
 		return fmt.Errorf("remove role %s from user %s: %w", req.Role, userID, err)
 	}
 	return nil
